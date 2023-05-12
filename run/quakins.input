@@ -1,0 +1,50 @@
+# -------------------------------------
+#    input file of the quakins code
+# -------------------------------------
+
+@ time --------------------------------*
+
+dt = 0.1
+
+@ time --------------------------------*
+
+@ domain ------------------------------*
+
+nx1             =  300
+nx2             =  200
+nv1             =  100
+nv2             =  100
+
+nx1_ghost       =  0
+nx2_ghost       =  0
+nv1_ghost       =  0
+nv2_ghost       =  0
+
+x1min           =  0
+x1max           =  30.3410
+x2min           =  0
+x2max           =  10
+v1min           = -6
+v1max           =  6
+v2min           = -6
+v2max           =  6
+
+@ domain ------------------------------*
+
+@ factories ---------------------------*
+
+coordinate      =  cylindrical 
+x1_solver       =  FSM_AS
+x2_solver       =  FSM_AS
+v1_solver       =  FSM_AS
+v2_solver       =  FSM_AS
+poisson_solver  =  HYBRID_PS
+
+@ factories ---------------------------*
+
+@ test particle -----------------------*
+
+Z               =  1
+vp              =  1
+
+@ test particle -----------------------*
