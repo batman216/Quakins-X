@@ -8,61 +8,54 @@
 #include <thrust/transform.h>
 #include <thrust/for_each.h>
 #include <cstdio>
-#include <mpi.h>
 #include <nccl.h>
-#include <omp.h>
 #include "include/initialization.hpp"
 #include "include/PhaseSpaceInitialization.hpp"
+#include "include/Timer.hpp"
 
 using Real = float;
 
-constexpr int dim = 4;
+constexpr std::size_t dim = 4;
 
 int main(int argc, char* argv[]) {
 
+	Timer watch;
+
 	std::ifstream input_file("quakins.input");
 	auto domain_map = read_box(input_file, "domain");
-
-
-	Parameters<int,Real,dim> *p = new Parameters<int,Real,dim>;
 	
+	Parameters<std::size_t,Real,dim> *p = 
+	             new Parameters<std::size_t,Real,dim>;
+	
+	watch.tick("Initializing...");
 	quakins::initDomain(p,domain_map);
+	watch.tock();
+
+	watch.tick("Creating phase space on the host...");
 	thrust::host_vector<Real> _f_electron(p->n_1d_tot);
-
-	int n_dev;
-	cudaGetDeviceCount(&n_dev);
-	std::cout << "The Wigner function costs " 
-	          << p->n_1d_tot*sizeof(Real)/1048576 << "Mb of Memory" << std::endl;
-
-	std::cout << "You have " << omp_get_num_procs() << " CPU hosts." << std::endl;
-	std::cout << n_dev << " GPU devices are found: " << std::endl;
-	for (int i=0; i<n_dev; i++) {
-		cudaDeviceProp dev_prop;
-		cudaGetDeviceProperties(&dev_prop,i);
-		std::cout << "	" << i << ": " << dev_prop.name << std::endl;
-	}
-
-	std::vector<thrust::device_vector<Real>*> electron_p_devs;
-	for (int i=0; i<n_dev; i++) {
-		cudaSetDevice(i);
-		electron_p_devs.push_back(new thrust::device_vector<Real>{p->n_1d_tot});	
-	}
-	//ncclGroupStart();
-//	omp_set_num_threads(n_dev);
-//	#pragma omp parallel
-	for (int i=0; i<n_dev; i++)
-	{
-		cudaSetDevice(i);
-		*electron_p_devs[i] = _f_electron;
-		cudaDeviceSynchronize();
-	}
-	//ncclGroupEnd();
-	
+	watch.tock();
 
 	quakins::PhaseSpaceInitialization phaseSpaceInit(p);
-
 	phaseSpaceInit(_f_electron.begin(),_f_electron.end());
 
+
+	std::vector<thrust::device_vector<Real>*> electron_p_devs;
+
+	watch.tick("Copy to GPU devices...");
+	#pragma omp parallel for
+	for (int i=0; i<p->n_dev; i++) {
+		cudaSetDevice(i);
+		electron_p_devs.push_back(
+		                new thrust::device_vector
+		                <Real>{static_cast<std::size_t>
+		                (p->n_1d_per_dev)});	
+		
+		thrust::copy(_f_electron.begin()+i*p->n_1d_per_dev,
+		             _f_electron.begin()+(i+1)*p->n_1d_per_dev, 
+		             (*electron_p_devs[i]).begin());
+		cudaDeviceSynchronize();
+	}
+	watch.tock();
 
 }
 
