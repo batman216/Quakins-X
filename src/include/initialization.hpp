@@ -28,32 +28,38 @@ struct Parameters {
 
 	// length of each direction in phase space
 	val_type length[dim];
+	
+	std::string v_shape;
+	// characteristic velocties
+	val_type v1, v2, v3, v4;
 
 };
 
 namespace quakins {
 
 template<typename idx_type, typename val_type, idx_type dim>
-void initDomain(Parameters<idx_type,val_type, dim>* p, 
-                const std::map<std::string,std::string> &dmap) {
+void init(Parameters<idx_type,val_type, dim>* p) {
 
-	assign(p->n[0], "nx1", dmap);
-	assign(p->n[1], "nx2", dmap);
-	assign(p->n[2], "nv1", dmap);
-	assign(p->n[3], "nv2", dmap);
-	assign(p->n_ghost[0], "nx1_ghost", dmap);
-	assign(p->n_ghost[1], "nx2_ghost", dmap);
-	assign(p->n_ghost[2], "nv1_ghost", dmap);
-	assign(p->n_ghost[3], "nv2_ghost", dmap);
+	std::ifstream input_file("quakins.input");
+	auto d_map = read_box(input_file, "domain");
 
-	assign(p->bound[0], "x1min", dmap);
-	assign(p->bound[1], "x2min", dmap);
-	assign(p->bound[2], "v1min", dmap);
-	assign(p->bound[3], "v2min", dmap);
-	assign(p->bound[4], "x1max", dmap);
-	assign(p->bound[5], "x2max", dmap);
-	assign(p->bound[6], "v1max", dmap);
-	assign(p->bound[7], "v2max", dmap);
+	assign(p->n[0], "nx1", d_map);
+	assign(p->n[1], "nx2", d_map);
+	assign(p->n[2], "nv1", d_map);
+	assign(p->n[3], "nv2", d_map);
+	assign(p->n_ghost[0], "nx1_ghost", d_map);
+	assign(p->n_ghost[1], "nx2_ghost", d_map);
+	assign(p->n_ghost[2], "nv1_ghost", d_map);
+	assign(p->n_ghost[3], "nv2_ghost", d_map);
+
+	assign(p->bound[0], "x1min", d_map);
+	assign(p->bound[1], "x2min", d_map);
+	assign(p->bound[2], "v1min", d_map);
+	assign(p->bound[3], "v2min", d_map);
+	assign(p->bound[4], "x1max", d_map);
+	assign(p->bound[5], "x2max", d_map);
+	assign(p->bound[6], "v1max", d_map);
+	assign(p->bound[7], "v2max", d_map);
 	
 	std::transform(p->n, p->n+dim, p->n_ghost, p->n_tot,
 	               [](idx_type a, idx_type b){ return a+2*b; });
@@ -74,19 +80,31 @@ void initDomain(Parameters<idx_type,val_type, dim>* p,
 
 	std::cout << "You have " << omp_get_num_procs() << " CPU hosts." << std::endl;
 	std::cout << p->n_dev << " GPU devices are found: " << std::endl;
+	std::cout << "Maxium of your int type: " 
+	          << std::numeric_limits<idx_type>::max() << std::endl;
+
 	for (int i=0; i<p->n_dev; i++) {
 		cudaDeviceProp dev_prop;
 		cudaGetDeviceProperties(&dev_prop,i);
 		std::cout << "	" << i << ": " << dev_prop.name << std::endl;
 	} // display the names of GPU devices
 	
-	std::cout << "Maxium of your int type: " 
-	          << std::numeric_limits<idx_type>::max() << std::endl;
-
 	std::size_t mem_size = p->n_1d_tot*sizeof(val_type)/1048576; 
 	std::cout << "The Wigner function costs " 
 	          << mem_size << "Mb of Memory, " 
 	          << mem_size/p->n_dev << "Mb per GPU." << std::endl;
+
+	
+	auto v_map = read_box(input_file,"initial");
+
+	assign(p->v1,"v1",v_map);
+	assign(p->v2,"v2",v_map);
+	assign(p->v3,"v3",v_map);
+	assign(p->v4,"v4",v_map);
+
+	p->v_shape = v_map["shape"];
+	std::cout << "initial shape of the Wigner function velocity space: "
+	          << p->v_shape << std::endl;
 
 
 }

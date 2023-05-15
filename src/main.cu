@@ -21,15 +21,10 @@ int main(int argc, char* argv[]) {
 
 	Timer watch;
 
-	std::ifstream input_file("quakins.input");
-	auto domain_map = read_box(input_file, "domain");
-	
 	Parameters<std::size_t,Real,dim> *p = 
-	             new Parameters<std::size_t,Real,dim>;
-	
-	watch.tick("Initializing...");
-	quakins::initDomain(p,domain_map);
-	watch.tock();
+             new Parameters<std::size_t,Real,dim>;
+
+	quakins::init(p);
 
 	watch.tick("Creating phase space on the host...");
 	thrust::host_vector<Real> _f_electron(p->n_1d_tot);
@@ -42,13 +37,12 @@ int main(int argc, char* argv[]) {
 	std::vector<thrust::device_vector<Real>*> electron_p_devs;
 
 	watch.tick("Copy to GPU devices...");
-	#pragma omp parallel for
 	for (int i=0; i<p->n_dev; i++) {
 		cudaSetDevice(i);
 		electron_p_devs.push_back(
 		                new thrust::device_vector
 		                <Real>{static_cast<std::size_t>
-		                (p->n_1d_per_dev)});	
+		                (p->n_1d_per_dev)});
 		
 		thrust::copy(_f_electron.begin()+i*p->n_1d_per_dev,
 		             _f_electron.begin()+(i+1)*p->n_1d_per_dev, 
