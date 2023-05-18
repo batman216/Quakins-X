@@ -1,7 +1,7 @@
 EXE = quakins
 CXX = nvcc
 
-NVCFlAG = --extended-lambda
+NVCFlAG = --extended-lambda --expt-relaxed-constexpr 
 CXXFLAG = -std=c++20 -Xcompiler -fopenmp
 LDFLAG  = -I/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/12.0/nccl/include           \
           -L/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/12.0/nccl/lib               \

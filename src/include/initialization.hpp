@@ -12,26 +12,30 @@ struct Parameters {
 	idx_type n_dev;
 
 	// # mesh grid
-	idx_type n[dim];
+	std::array<idx_type,dim> n;
 
 	// # ghost mesh
-	idx_type n_ghost[dim];
+	std::array<idx_type,dim> n_ghost;
 
 	// # total in each direction (n_tot=n1+2*n_ghost)
-	idx_type n_tot[dim];
+	std::array<idx_type,dim> n_tot;
 
 	// # n_tot 
 	idx_type n_1d_tot, n_1d_per_dev;
 
-	// boundary of the phase space (x1min,x2min,v1min,...,v2max)
-	val_type bound[2*dim];
+	// boundary of the phase space 
+	std::array<val_type,dim> low_bound, up_bound;
+
+	// interval between the phase space mesh grid nodes.
+	std::array<val_type,dim> interval;
 
 	// length of each direction in phase space
-	val_type length[dim];
+	std::array<val_type,dim> length;
 	
-	std::string v_shape;
+	std::string x1_shape, x2_shape, v1_shape, v2_shape;
 	// characteristic velocties
 	val_type v1, v2, v3, v4;
+
 
 };
 
@@ -52,24 +56,31 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 	assign(p->n_ghost[2], "nv1_ghost", d_map);
 	assign(p->n_ghost[3], "nv2_ghost", d_map);
 
-	assign(p->bound[0], "x1min", d_map);
-	assign(p->bound[1], "x2min", d_map);
-	assign(p->bound[2], "v1min", d_map);
-	assign(p->bound[3], "v2min", d_map);
-	assign(p->bound[4], "x1max", d_map);
-	assign(p->bound[5], "x2max", d_map);
-	assign(p->bound[6], "v1max", d_map);
-	assign(p->bound[7], "v2max", d_map);
+	assign(p->low_bound[0], "x1min", d_map);
+	assign(p->low_bound[1], "x2min", d_map);
+	assign(p->low_bound[2], "v1min", d_map);
+	assign(p->low_bound[3], "v2min", d_map);
 	
-	std::transform(p->n, p->n+dim, p->n_ghost, p->n_tot,
-	               [](idx_type a, idx_type b){ return a+2*b; });
-	std::transform(p->bound, p->bound+dim, p->bound+dim, p->length,
-	               [](val_type a, val_type b){ return b-a; });
+	assign(p->up_bound[0], "x1max", d_map);
+	assign(p->up_bound[1], "x2max", d_map);
+	assign(p->up_bound[2], "v1max", d_map);
+	assign(p->up_bound[3], "v2max", d_map);
+	
+	std::transform(p->n.begin(), p->n.end(), p->n_ghost.begin(), p->n_tot.begin(),
+	              [](idx_type a, idx_type b){ return a+2*b; });
 
-	p->n_1d_tot = std::accumulate(p->n_tot,p->n_tot+dim,
+	std::transform(p->low_bound.begin(), p->low_bound.end(), 
+	              p->up_bound.begin(), p->length.begin(),
+	              [](val_type a, val_type b){ return b-a; });
+	
+	std::transform(p->length.begin(),p->length.end(),p->n.begin(),p->interval.begin(),
+	              [](val_type a, idx_type b){ return a/static_cast<val_type>(b); });
+
+
+	p->n_1d_tot = std::accumulate(p->n_tot.begin(),p->n_tot.end(),
 	              static_cast<idx_type>(1),std::multiplies<idx_type>());
 
-	std::copy(p->n_tot,p->n_tot+dim,std::ostream_iterator<idx_type>(std::cout," "));
+	std::copy(p->n_tot.begin(),p->n_tot.end(),std::ostream_iterator<idx_type>(std::cout," "));
 	std::cout << p->n_1d_tot << std::endl;
 
 	int temp; // todo: this is not very elegant.
@@ -78,11 +89,11 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 
 	p->n_1d_per_dev = p->n_1d_tot / p->n_dev;
 
-	std::cout << "You have " << omp_get_num_procs() << " CPU hosts." << std::endl;
-	std::cout << p->n_dev << " GPU devices are found: " << std::endl;
 	std::cout << "Maxium of your int type: " 
 	          << std::numeric_limits<idx_type>::max() << std::endl;
 
+	std::cout << "You have " << omp_get_num_procs() << " CPU hosts." << std::endl;
+	std::cout << p->n_dev << " GPU devices are found: " << std::endl;
 	for (int i=0; i<p->n_dev; i++) {
 		cudaDeviceProp dev_prop;
 		cudaGetDeviceProperties(&dev_prop,i);
@@ -102,9 +113,11 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 	assign(p->v3,"v3",v_map);
 	assign(p->v4,"v4",v_map);
 
-	p->v_shape = v_map["shape"];
-	std::cout << "initial shape of the Wigner function velocity space: "
-	          << p->v_shape << std::endl;
+	p->x1_shape = v_map["x1_shape"];
+	p->x2_shape = v_map["x2_shape"];
+	p->v1_shape = v_map["v1_shape"];
+	p->v2_shape = v_map["v2_shape"];
+
 
 
 }

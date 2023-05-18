@@ -10,10 +10,10 @@ dt = 0.1
 
 @ domain ------------------------------*
 
-nx1             =  200
-nx2             =  200
-nv1             =  100
-nv2             =  100
+nx1             =  100
+nx2             =  100
+nv1             =  40
+nv2             =  40
 
 nx1_ghost       =  0
 nx2_ghost       =  0
@@ -21,7 +21,7 @@ nv1_ghost       =  0
 nv2_ghost       =  0
 
 x1min           =  0
-x1max           =  30.3410
+x1max           =  20
 x2min           =  0
 x2max           =  10
 v1min           = -6
