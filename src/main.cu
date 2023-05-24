@@ -1,5 +1,5 @@
 /* -------------------------------
- *     Main of the Quakins Code
+ *     Main of the Quakins-X Code
  * ------------------------------- */
 
 #include <thrust/host_vector.h>
@@ -42,6 +42,14 @@ int main(int argc, char* argv[]) {
 	quakins::PhaseSpaceInitialization
 	        <std::size_t,Real,dim>  phaseSpaceInit(p);
 
+	std::array<std::size_t,dim> n_dim_now,order_now={2,3,0,1};
+	thrust::scatter(p->n.begin(),p->n.end(),
+	                order_now.begin(),n_dim_now.begin());
+	n_dim_now[3] = n_dim_now[3]/p->n_dev;
+	quakins::ReorderCopy<std::size_t,Real,dim> copy1(n_dim_now,{2,0,1,3});
+
+
+
 	watch.tick("Phase space initialization directly on devices...");
 	#pragma omp parallel for
 	for (int i=0; i<p->n_dev; i++) {
@@ -49,6 +57,7 @@ int main(int argc, char* argv[]) {
 		phaseSpaceInit(thrust::device, 
 		               f_e[i]->begin(),
 		               p->n_1d_per_dev,p->n_1d_per_dev*i);
+		copy1(f_e[i]->begin(),f_e[i]->end(),f_e_buff[i]->begin());
 	}
 	watch.tock();
 
@@ -61,7 +70,7 @@ int main(int argc, char* argv[]) {
 	}
 	int devs[2] = {0,1};
 	ncclCommInitAll(comm,p->n_dev,devs);
-
+/*
 	watch.tick("Copy from GPU to GPU...");
 	ncclGroupStart();
 	ncclSend(thrust::raw_pointer_cast(f_e[1]->data()),
@@ -79,7 +88,7 @@ int main(int argc, char* argv[]) {
      cudaStreamSynchronize(stream[i]);
   }
 	watch.tock();
-	
+*/	
 
 
 	watch.tick("Allocating memory for phase space on the host...");
@@ -91,7 +100,7 @@ int main(int argc, char* argv[]) {
 	#pragma omp parallel for
 	for (int i=0; i<p->n_dev; i++) {
 		cudaSetDevice(i);
-		thrust::copy(f_e[i]->begin(),f_e[i]->end(),
+		thrust::copy(f_e_buff[i]->begin(),f_e_buff[i]->end(),
 		             _f_electron.begin() + i*(p->n_1d_per_dev));
 
 	}

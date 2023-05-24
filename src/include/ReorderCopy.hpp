@@ -11,17 +11,19 @@ struct cal_reorder_idx {
 
 	int_array order, n_dim;
 
+	__host__ __device__
 	cal_reorder_idx(int_array n_dim,int_array order) 
 	: order(order), n_dim(n_dim) {}
 
 	// transform i to i'.
-	idx_type operator()(int idx_s) {
+	__host__ __device__
+	idx_type operator()(const int &idx_s) {
 
 		int_array idx_m;
-		for (int i=0; i<dim; i++) {
+		for (unsigned int i=0; i<dim; i++) {
 			
 			idx_type imod = 1;
-			for (int j=0; j<i+1;j++) { imod *= n_dim[j]; }
+			for (unsigned int j=0; j<i+1;j++) { imod *= n_dim[j]; }
 			
 			idx_m[i] = (idx_s % imod) * n_dim[i] / imod;
 		}
@@ -33,15 +35,15 @@ struct cal_reorder_idx {
 	                  idx_m.begin(),order.begin());
 
 		int_array shift;	
-		thrust::exclusive_scan(pitor,pitor+dim,shift.begin(),1,
+		thrust::exclusive_scan(thrust::device,pitor,pitor+dim,shift.begin(),1,
 		thrust::multiplies<std::size_t>());
 
-		return thrust::inner_product(idx_pitor,idx_pitor+dim,
+		return thrust::inner_product(thrust::device,idx_pitor,idx_pitor+dim,
 	                              shift.begin(),0);
 	}
 };
 
-
+namespace quakins {
 template <typename idx_type, typename val_type, idx_type dim>
 class ReorderCopy {
 
@@ -54,16 +56,18 @@ public:
 	  : new_order(new_order),n_dim(n_dim) { }
 
 	template <typename in_itor_t, typename out_itor_t>
-	void operator()(in_itor_t in_begin, 
-	                in_itor_t in_end, 
+	void operator()(in_itor_t in_begin, in_itor_t in_end, 
 	                out_itor_t out_begin) {
 		
 		auto titor_begin = thrust::make_transform_iterator(
 		                thrust::make_counting_iterator(0), 
 		                cal_reorder_idx<idx_type,val_type,dim>
 		                (n_dim,new_order));
-	
+
+		thrust::scatter(thrust::device,
+		                in_begin,in_end,titor_begin,out_begin);
 
 	}
 
 };
+} // namespace quakins
