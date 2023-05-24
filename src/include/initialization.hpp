@@ -14,6 +14,9 @@ struct Parameters {
 	// # mesh grid
 	std::array<idx_type,dim> n;
 
+
+	std::array<idx_type,dim> init_order;
+
 	// # ghost mesh
 	std::array<idx_type,dim> n_ghost;
 
@@ -41,11 +44,14 @@ struct Parameters {
 
 namespace quakins {
 
+
 template<typename idx_type, typename val_type, idx_type dim>
-void init(Parameters<idx_type,val_type, dim>* p) {
+void init(Parameters<idx_type,val_type, dim>* p,int mpi_rank) {
 
 	std::ifstream input_file("quakins.input");
 	auto d_map = read_box(input_file, "domain");
+
+	p->init_order = {2,3,0,1};
 
 	assign(p->n[0], "nx1", d_map);
 	assign(p->n[1], "nx2", d_map);
@@ -76,7 +82,6 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 	std::transform(p->length.begin(),p->length.end(),p->n.begin(),p->interval.begin(),
 	              [](val_type a, idx_type b){ return a/static_cast<val_type>(b); });
 
-
 	p->n_1d_tot = std::accumulate(p->n_tot.begin(),p->n_tot.end(),
 	              static_cast<idx_type>(1),std::multiplies<idx_type>());
 
@@ -89,22 +94,23 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 
 	p->n_1d_per_dev = p->n_1d_tot / p->n_dev;
 
-	std::cout << "Maxium of your int type: " 
-	          << std::numeric_limits<idx_type>::max() << std::endl;
+	if (mpi_rank==0) {
+		std::cout << "Maxium of your int type: " 
+		          << std::numeric_limits<idx_type>::max() << std::endl;
 
-	std::cout << "You have " << omp_get_num_procs() << " CPU hosts." << std::endl;
-	std::cout << p->n_dev << " GPU devices are found: " << std::endl;
-	for (int i=0; i<p->n_dev; i++) {
-		cudaDeviceProp dev_prop;
-		cudaGetDeviceProperties(&dev_prop,i);
-		std::cout << "	" << i << ": " << dev_prop.name << std::endl;
-	} // display the names of GPU devices
+		std::cout << "You have " << omp_get_num_procs() << " CPU hosts." << std::endl;
+		std::cout << p->n_dev << " GPU devices are found: " << std::endl;
+		for (int i=0; i<p->n_dev; i++) {
+			cudaDeviceProp dev_prop;
+			cudaGetDeviceProperties(&dev_prop,i);
+			std::cout << "	" << i << ": " << dev_prop.name << std::endl;
+		} // display the names of GPU devices
 	
-	std::size_t mem_size = p->n_1d_tot*sizeof(val_type)/1048576; 
-	std::cout << "The Wigner function costs " 
-	          << mem_size << "Mb of Memory, " 
-	          << mem_size/p->n_dev << "Mb per GPU." << std::endl;
-
+		std::size_t mem_size = p->n_1d_tot*sizeof(val_type)/1048576; 
+		std::cout << "The Wigner function costs " 
+	            << mem_size << "Mb of Memory, " 
+	            << mem_size/p->n_dev << "Mb per GPU." << std::endl;
+	}
 	
 	auto v_map = read_box(input_file,"initial");
 
@@ -121,6 +127,13 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 
 
 }
+
+template<typename idx_type, typename val_type, idx_type dim>
+void init(Parameters<idx_type,val_type, dim>* p) {
+
+	init(p,0);
+}
+
 
 } // namespace quakins
 

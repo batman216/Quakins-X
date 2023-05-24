@@ -1,6 +1,7 @@
 #ifndef _UTIL_HPP_
 #define _UTIL_HPP_
-
+#include <cuda_runtime.h>
+#include <thrust/copy.h>
 #include <string>
 #include <map>
 #include <sstream>
@@ -93,6 +94,14 @@ std::map<std::string, std::string>
     read_box(std::ifstream& is,    
              std::string box_name);
 
+template <typename T,
+          template<typename...> typename Container>
+std::ostream& operator<<(std::ostream& os, const Container<T>& obj) {
+	
+	thrust::copy(obj.begin(), obj.end(),
+	          std::ostream_iterator<T>(os,"	"));
+	return os;
+}
 
 
 #endif /* _UTIL_HPP_ */
