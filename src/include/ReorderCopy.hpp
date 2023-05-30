@@ -34,12 +34,15 @@ struct cal_reorder_idx {
 		auto idx_pitor = thrust::make_permutation_iterator(
 	                  idx_m.begin(),order.begin());
 
-		int_array shift;	
-		thrust::exclusive_scan(thrust::device,pitor,pitor+dim,shift.begin(),1,
-		thrust::multiplies<std::size_t>());
+		// exclusive prefixed sum of n_dim in new order
+		int_array shift; 
+		thrust::exclusive_scan(thrust::device,
+		                       pitor,pitor+dim,shift.begin(),1,
+		                       thrust::multiplies<std::size_t>());
 
-		return thrust::inner_product(thrust::device,idx_pitor,idx_pitor+dim,
-	                              shift.begin(),0);
+		return thrust::inner_product(thrust::device,
+		                             idx_pitor,idx_pitor+dim,
+	                               shift.begin(),0);
 	}
 };
 
@@ -70,4 +73,5 @@ public:
 	}
 
 };
+
 } // namespace quakins
