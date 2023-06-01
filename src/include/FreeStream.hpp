@@ -83,6 +83,7 @@ class FreeStream {
                         val_type,val_type> FourValTuple;
 
   const idx_type n_bd, nx, nv, n_tot;
+  const val_type dx;
 
   // flux function and shift length of each grid
   thrust::host_vector<val_type> alpha;
@@ -90,8 +91,7 @@ class FreeStream {
 public:
   FreeStream(Parameters<idx_type,val_type,dim> *p,val_type dt) :
   n_bd(p->n_ghost[xdim]), nx(p->n_tot_local[xdim]-p->n_ghost[xdim]*2), 
-  nv(p->n_tot_local[vdim]),
-  n_tot(p->n_1d_per_dev) {
+  nv(p->n_tot_local[vdim]), n_tot(p->n_1d_per_dev), dx(p->interval[xdim]) {
     
     val_type dv = p->interval[vdim];
     val_type dx = p->interval[xdim];
@@ -114,15 +114,16 @@ public:
   template <typename itor_type>
   __host__
   void operator()(itor_type itor_begin, itor_type itor_end, 
-                idx_type n_chunk) {
+                idx_type n_chunk,int gpu) {
 
+    std::ofstream pout("phi"+std::to_string(gpu),std::ios::out);
     // the outermost dimension is calculated sequentially
     std::size_t n_step = n_tot/n_chunk; 
 
     // prepare the flux function
-    thrust::device_vector<val_type> Phi(n_chunk);
+    thrust::device_vector<val_type> flux(n_chunk);
     
-    // Boundary Condition
+    // Boundary Condition --------------------------------------
     strided_chunk_range<itor_type> 
       left_inside(itor_begin+n_bd,itor_end-n_bd,nx+2*n_bd, n_bd);
     strided_chunk_range<itor_type> 
@@ -138,58 +139,87 @@ public:
     thrust::copy(thrust::device,
                  right_inside.begin(),right_inside.end(),
                  left_outside.begin());
+    // ---------------------------------------------------------
+
+    constexpr bool print_flux = 0;
+
+    val_type a, shift;
 
     auto itor_begin_l = itor_begin;
 
     for (std::size_t i = 0; i<n_step/2; i++) {
 
-      val_type a = alpha[i];
+      a = std::modf(alpha[i],&shift);
+      
+      shift = -shift;
 
       auto zitor_neg_begin 
             = make_zip_iterator(thrust::make_tuple(
-                      itor_begin_l,
-                      itor_begin_l+1,  
-                      itor_begin_l+2));
+                      itor_begin_l+shift,
+                      itor_begin_l+shift+1,  
+                      itor_begin_l+shift+2));
       
-      //i calculate the flux function \Phi
+      //i calculate the flux function \flux
       thrust::transform(thrust::device, 
                         zitor_neg_begin+n_bd-1,
-                        zitor_neg_begin+n_chunk-n_bd+1,
-                        Phi.begin()+n_bd-1,
+                        zitor_neg_begin-n_bd+n_chunk,
+                        flux.begin()+n_bd-1,
       [a]__host__ __device__(ThreeValTuple tuple){
         return a*(thrust::get<1>(tuple) 
          -(1-a)*(1+a)/6.*(thrust::get<2>(tuple)-thrust::get<1>(tuple))
          -(2+a)*(1+a)/6.*(thrust::get<1>(tuple)-thrust::get<0>(tuple)));
       });
+/*
+      for (int k=1; k<=static_cast<int>(shift); ++k) {
+        auto zitor_presum_begin
+             = thrust::make_zip_iterator(thrust::make_tuple(
+                              itor_begin_l+n_bd-1 + k,
+                              flux.begin()+n_bd-1 ));
+         std::cout << k << " ";
 
-
+        thrust::for_each(thrust::device,
+                       zitor_presum_begin, zitor_presum_begin+n_chunk+1,
+                       []__host__ __device__ (TwoValTuple tuple) {
+                          thrust::get<1>(tuple) += thrust::get<0>(tuple);  
+                       });
+      }
+*/
       thrust::adjacent_difference(thrust::device,
-                                  Phi.begin(),Phi.end(),Phi.begin());
+                                  flux.begin(),flux.end(),
+                                  flux.begin());
 
-      // calculate f[i](t+dt)=f[i](t) + Phi[i-1/2] -Phi[i+1/2]
-      thrust::transform(thrust::device, 
-                        Phi.begin(), Phi.end(), 
-                        itor_begin_l, itor_begin_l,
-                        []__host__ __device__
-                        (val_type dphi,val_type val){ return val-dphi; });
-      
+      if constexpr (print_flux) {
+        thrust::copy(flux.begin(),flux.end(),
+                   std::ostream_iterator<val_type>(pout," "));
+        pout << std::endl;
+      }
+
+      using namespace thrust::placeholders;
+
+      // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
+      thrust::transform(flux.begin(),flux.end(),
+                        itor_begin_l,itor_begin_l, _2 - _1);
+
       itor_begin_l += n_chunk;
     } // v < 0
-    
-    for (std::size_t i = n_step/2; i<n_step; i++) {
+      
 
-      val_type a = alpha[i];
+    for (std::size_t i = n_step/2; i<n_step; i++) {
+      
+      a = std::modf(alpha[i],&shift);
+
+      shift = -shift;
 
       auto zitor_pos_begin 
            = make_zip_iterator(thrust::make_tuple(
-                       itor_begin_l-1,
-                       itor_begin_l,  
-                       itor_begin_l+1));
+                       itor_begin_l+static_cast<int>(shift)-1,
+                       itor_begin_l+static_cast<int>(shift),  
+                       itor_begin_l+static_cast<int>(shift)+1));
 
       thrust::transform(thrust::device, 
-                       zitor_pos_begin+n_bd+1,
-                       zitor_pos_begin+n_chunk-n_bd+1,
-                       Phi.begin()+n_bd-1,
+                        zitor_pos_begin+n_bd-1,
+                        zitor_pos_begin-n_bd+n_chunk,
+                        flux.begin()+n_bd-1,
       [a]__host__ __device__(ThreeValTuple tuple){
         return a*(thrust::get<1>(tuple) 
          +(1-a)*(2-a)/6.*(thrust::get<2>(tuple)-thrust::get<1>(tuple))
@@ -197,19 +227,38 @@ public:
       });
 
 
-      thrust::adjacent_difference(thrust::device,
-                                  Phi.begin(),Phi.end(),Phi.begin());
+      for (int k=-1; k>=static_cast<int>(shift); --k) {
+        
+        auto zitor_presum_begin
+             = thrust::make_zip_iterator(thrust::make_tuple(
+                              itor_begin_l+n_bd-1 + k,
+                              flux.begin()+n_bd-1 ));
 
-      // calculate f[i](t+dt)=f[i](t) + Phi[i-1/2] -Phi[i+1/2]
-      thrust::transform(thrust::device, 
-                        Phi.begin(),Phi.end(), 
-                        itor_begin_l,itor_begin_l,
-                        []__host__ __device__
-                        (val_type dphi,val_type val){return val-dphi;});
-   
+        std::cout << k << " ";
+        thrust::for_each(thrust::device,
+                       zitor_presum_begin, zitor_presum_begin+n_chunk+1,
+                       []__host__ __device__ (TwoValTuple tuple) {
+                          thrust::get<1>(tuple) += thrust::get<0>(tuple);  
+                       });
+      }
+
+      thrust::adjacent_difference(thrust::device,
+                                  flux.begin(),flux.end(),
+                                  flux.begin());
+
+      if constexpr (print_flux) {
+        thrust::copy(flux.begin(),flux.end(),
+                   std::ostream_iterator<val_type>(pout," "));
+        pout << std::endl;
+      }
+
+      using namespace thrust::placeholders;
+      // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
+      thrust::transform(flux.begin(),flux.end(),
+                        itor_begin_l,itor_begin_l, _2 - _1);
+
       itor_begin_l += n_chunk;
     } // v > 0
-
   }
 
 };

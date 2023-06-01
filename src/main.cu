@@ -5,6 +5,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/gather.h>
 #include <cstdio>
 #include <mpi.h>
 #include <nccl.h>
@@ -43,8 +44,21 @@ int main(int argc, char* argv[]) {
   quakins::PhaseSpaceInitialization
           <std::size_t,Real,dim>  phaseSpaceInit(p);
 
-  quakins::ReorderCopy<std::size_t,Real,dim> copy1(p->n_tot_local,{2,3,1,0});
+  std::array<std::size_t,4> order1 = {2,3,1,0},
+                            order2 = {3,2,0,1};
+
+  std::array<std::size_t,4> n_now = p->n_tot_local;
+  quakins::ReorderCopy<std::size_t,Real,dim> copy1(n_now,order1);
+  
+  thrust::gather(order1.begin(),order1.end(),p->n_tot_local.begin(),
+                n_now.begin());
+
+  std::copy(n_now.begin(),n_now.end(),std::ostream_iterator<std::size_t>(std::cout," "));
+  std::cout << std::endl;
+  quakins::ReorderCopy<std::size_t,Real,dim> copy2(n_now,order2);
+  
   FreeStream<std::size_t,Real,dim,2,0> fsSolverX1(p,p->dt*.5);
+  FreeStream<std::size_t,Real,dim,3,1> fsSolverX2(p,p->dt*.5);
 
   watch.tick("Phase space initialization directly on devices...");
   #pragma omp parallel for
@@ -56,6 +70,7 @@ int main(int argc, char* argv[]) {
                    p->n_1d_per_dev,p->n_1d_per_dev*i);
     
     copy1(f_e[i]->begin(),f_e[i]->end(),f_e_buff[i]->begin());
+
   }
   watch.tock();
 
@@ -68,7 +83,8 @@ int main(int argc, char* argv[]) {
   #pragma omp parallel for
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
-    thrust::copy(f_e_buff[i]->begin(),f_e_buff[i]->end(),
+    copy2(f_e_buff[i]->begin(),f_e_buff[i]->end(),f_e[i]->begin());
+    thrust::copy(f_e[i]->begin(),f_e[i]->end(),
                  _f_electron.begin() + i*(p->n_1d_per_dev));
 
   }
@@ -82,10 +98,12 @@ int main(int argc, char* argv[]) {
   watch.tick("push...");
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
-    for (std::size_t step=0; step<1000; step++) {
+    for (std::size_t step=0; step<50; step++) {
       fsSolverX1(f_e_buff[i]->begin(),
                  f_e_buff[i]->end(),
-                 p->n_1d_per_dev/p->n_tot_local[0]);
+                 p->n_1d_per_dev/p->n_tot_local[0],i);
+
+      copy2(f_e_buff[i]->begin(),f_e_buff[i]->end(),f_e[i]->begin());
     }
   }
   watch.tock();
@@ -122,13 +140,13 @@ int main(int argc, char* argv[]) {
   }
   watch.tock();
 */  
-
-
+  
   watch.tick("Copy from GPU to CPU...");
   #pragma omp parallel for
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
-    thrust::copy(f_e_buff[i]->begin(),f_e_buff[i]->end(),
+    
+    thrust::copy(f_e[i]->begin(),f_e[i]->end(),
                  _f_electron.begin() + i*(p->n_1d_per_dev));
 
   }

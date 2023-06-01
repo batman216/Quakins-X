@@ -81,8 +81,13 @@ void init(Parameters<idx_type,val_type, dim>* p,int mpi_rank) {
   std::transform(p->low_bound.begin(), p->low_bound.end(), 
                 p->up_bound.begin(), p->length.begin(),
                 [](val_type a, val_type b){ return b-a; });
-  
-  std::transform(p->length.begin(),p->length.end(),p->n.begin(),p->interval.begin(),
+
+  std::transform(p->length.begin(),p->length.begin()+2,
+                 p->n.begin(),p->interval.begin(),
+                [](val_type a, idx_type b){ return a/(static_cast<val_type>(b)-1); });
+
+  std::transform(p->length.begin()+2,p->length.end(),
+                 p->n.begin()+2,p->interval.begin()+2,
                 [](val_type a, idx_type b){ return a/static_cast<val_type>(b); });
 
   p->n_1d_tot = std::accumulate(p->n_tot.begin(),p->n_tot.end(),
