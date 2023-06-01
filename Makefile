@@ -1,16 +1,20 @@
 EXE = quakins
 CXX = nvcc
 
+SDK_HOME ?= /opt/nvidia/hpc_sdk/Linux_x86_64/23.3
+CUDA_VERSION ?= 12.0
+SDK_VERSION ?= 23.3
+
 NVCFlAG = --extended-lambda --expt-relaxed-constexpr 
 CXXFLAG = -std=c++20 -Xcompiler -fopenmp
-ICLFLAG = -I/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/12.0/nccl/include           \
-          -I/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/hpcx/hpcx-2.14/ompi/include \
-          -I/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/compilers/include                     \
+ICLFLAG = -I${SDK_HOME}/comm_libs/${CUDA_VERSION}/nccl/include             \
+          -I${SDK_HOME}/comm_libs/hpcx/hpcx-2.14/ompi/include              \
+          -I${SDK_HOME}/compilers/include                                  \
 
-LDFLAG  = -L/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/12.0/nccl/lib                 \
-          -L/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/hpcx/hpcx-2.14/ompi/lib       \
-          -L/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/compilers/lib                           \
-          -L/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/math_libs/12.0/targets/x86_64-linux/lib \
+LDFLAG  = -L${SDK_HOME}/comm_libs/${CUDA_VERSION}/nccl/lib                 \
+          -L${SDK_HOME}/comm_libs/hpcx/hpcx-2.14/ompi/lib                  \
+          -L${SDK_HOME}/compilers/lib                                      \
+          -L${SDK_HOME}/math_libs/${CUDA_VERSION}/targets/x86_64-linux/lib \
           -lmpi -lopen-rte -lopen-pal -lomp -lnccl -lcufft
 ifeq ($(mode),debug)
 	CXXFLAG += -g
