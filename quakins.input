@@ -15,8 +15,8 @@ nx2             =  40
 nv1             =  100
 nv2             =  30
 
-nx1_ghost       =  4
-nx2_ghost       =  4
+nx1_ghost       =  8
+nx2_ghost       =  8
 nv1_ghost       =  0
 nv2_ghost       =  0
 

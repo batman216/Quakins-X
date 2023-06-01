@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
   watch.tick("push...");
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
-    for (std::size_t step=0; step<50; step++) {
+    for (std::size_t step=0; step<80; step++) {
       fsSolverX1(f_e_buff[i]->begin(),
                  f_e_buff[i]->end(),
                  p->n_1d_per_dev/p->n_tot_local[0],i);

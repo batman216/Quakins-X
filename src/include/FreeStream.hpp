@@ -140,18 +140,18 @@ public:
                  right_inside.begin(),right_inside.end(),
                  left_outside.begin());
     // ---------------------------------------------------------
-
     constexpr bool print_flux = 0;
 
-    val_type a, shift;
+    val_type a, shift_f;
+    int shift;
 
     auto itor_begin_l = itor_begin;
 
     for (std::size_t i = 0; i<n_step/2; i++) {
 
-      a = std::modf(alpha[i],&shift);
-      
-      shift = -shift;
+      a = std::modf(alpha[i],&shift_f);
+      shift = -static_cast<int>(shift_f);
+      if (std::abs(shift)>4) std::cout<< "!!!!!!!!!!!!!!!" << std::endl;
 
       auto zitor_neg_begin 
             = make_zip_iterator(thrust::make_tuple(
@@ -159,7 +159,7 @@ public:
                       itor_begin_l+shift+1,  
                       itor_begin_l+shift+2));
       
-      //i calculate the flux function \flux
+      // calculate the flux function \flux
       thrust::transform(thrust::device, 
                         zitor_neg_begin+n_bd-1,
                         zitor_neg_begin-n_bd+n_chunk,
@@ -169,19 +169,69 @@ public:
          -(1-a)*(1+a)/6.*(thrust::get<2>(tuple)-thrust::get<1>(tuple))
          -(2+a)*(1+a)/6.*(thrust::get<1>(tuple)-thrust::get<0>(tuple)));
       });
-/*
-      for (int k=1; k<=static_cast<int>(shift); ++k) {
-        auto zitor_presum_begin
-             = thrust::make_zip_iterator(thrust::make_tuple(
-                              itor_begin_l+n_bd-1 + k,
-                              flux.begin()+n_bd-1 ));
-         std::cout << k << " ";
 
-        thrust::for_each(thrust::device,
-                       zitor_presum_begin, zitor_presum_begin+n_chunk+1,
-                       []__host__ __device__ (TwoValTuple tuple) {
-                          thrust::get<1>(tuple) += thrust::get<0>(tuple);  
-                       });
+      for (int k=1; k<=shift; ++k) {
+        
+        using namespace thrust::placeholders;
+
+        thrust::transform(thrust::device,
+                          itor_begin_l+n_bd-1+k,
+                          itor_begin_l-n_bd+k+n_chunk,
+                          flux.begin()+n_bd-1,
+                          flux.begin()+n_bd-1, _2-_1);
+      }
+
+      thrust::adjacent_difference(thrust::device,
+                                  flux.begin(),flux.end(),
+                                  flux.begin());
+
+      if constexpr (print_flux) {
+        thrust::copy(flux.begin(),flux.end(),
+                   std::ostream_iterator<val_type>(pout," "));
+        pout << std::endl;
+      }
+
+      using namespace thrust::placeholders;
+
+      // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
+      thrust::transform(flux.begin()+n_bd,flux.end()-n_bd,
+                        itor_begin_l+n_bd,itor_begin_l+n_bd, _2 - _1);
+
+      itor_begin_l += n_chunk;
+    } // v < 0
+      
+
+    for (std::size_t i = n_step/2; i<n_step; i++) {
+      
+      a = std::modf(alpha[i],&shift_f);
+      shift = static_cast<int>(-shift_f);
+      std::cout<< shift << std::endl;
+
+      auto zitor_pos_begin 
+      = make_zip_iterator(thrust::make_tuple(
+                          itor_begin_l+shift-1,
+                          itor_begin_l+shift,  
+                          itor_begin_l+shift+1));
+
+      thrust::transform(thrust::device, 
+                        zitor_pos_begin+n_bd-1 ,
+                        zitor_pos_begin-n_bd+n_chunk ,
+                        flux.begin()+n_bd-1,
+      [a]__host__ __device__(ThreeValTuple tuple){
+        return a*(thrust::get<1>(tuple) 
+         +(1-a)*(2-a)/6.*(thrust::get<2>(tuple)-thrust::get<1>(tuple))
+         +(1-a)*(1+a)/6.*(thrust::get<1>(tuple)-thrust::get<0>(tuple)));
+      });
+/*
+      for (int k=-1; k>=shift; --k) {
+        
+        using namespace thrust::placeholders;
+
+        thrust::transform(thrust::device,
+                          itor_begin_l+n_bd-1+k,
+                          itor_begin_l-n_bd+k+n_chunk,
+                          flux.begin()+n_bd-1,
+                          flux.begin()+n_bd-1, _1+_2);
       }
 */
       thrust::adjacent_difference(thrust::device,
@@ -195,70 +245,13 @@ public:
       }
 
       using namespace thrust::placeholders;
-
       // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
-      thrust::transform(flux.begin(),flux.end(),
-                        itor_begin_l,itor_begin_l, _2 - _1);
-
-      itor_begin_l += n_chunk;
-    } // v < 0
-      
-
-    for (std::size_t i = n_step/2; i<n_step; i++) {
-      
-      a = std::modf(alpha[i],&shift);
-
-      shift = -shift;
-
-      auto zitor_pos_begin 
-           = make_zip_iterator(thrust::make_tuple(
-                       itor_begin_l+static_cast<int>(shift)-1,
-                       itor_begin_l+static_cast<int>(shift),  
-                       itor_begin_l+static_cast<int>(shift)+1));
-
-      thrust::transform(thrust::device, 
-                        zitor_pos_begin+n_bd-1,
-                        zitor_pos_begin-n_bd+n_chunk,
-                        flux.begin()+n_bd-1,
-      [a]__host__ __device__(ThreeValTuple tuple){
-        return a*(thrust::get<1>(tuple) 
-         +(1-a)*(2-a)/6.*(thrust::get<2>(tuple)-thrust::get<1>(tuple))
-         +(1-a)*(1+a)/6.*(thrust::get<1>(tuple)-thrust::get<0>(tuple)));
-      });
-
-
-      for (int k=-1; k>=static_cast<int>(shift); --k) {
-        
-        auto zitor_presum_begin
-             = thrust::make_zip_iterator(thrust::make_tuple(
-                              itor_begin_l+n_bd-1 + k,
-                              flux.begin()+n_bd-1 ));
-
-        std::cout << k << " ";
-        thrust::for_each(thrust::device,
-                       zitor_presum_begin, zitor_presum_begin+n_chunk+1,
-                       []__host__ __device__ (TwoValTuple tuple) {
-                          thrust::get<1>(tuple) += thrust::get<0>(tuple);  
-                       });
-      }
-
-      thrust::adjacent_difference(thrust::device,
-                                  flux.begin(),flux.end(),
-                                  flux.begin());
-
-      if constexpr (print_flux) {
-        thrust::copy(flux.begin(),flux.end(),
-                   std::ostream_iterator<val_type>(pout," "));
-        pout << std::endl;
-      }
-
-      using namespace thrust::placeholders;
-      // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
-      thrust::transform(flux.begin(),flux.end(),
-                        itor_begin_l,itor_begin_l, _2 - _1);
+      thrust::transform(flux.begin()+n_bd,flux.end()-n_bd,
+                        itor_begin_l+n_bd,itor_begin_l+n_bd, _2 - _1);
 
       itor_begin_l += n_chunk;
     } // v > 0
+
   }
 
 };
