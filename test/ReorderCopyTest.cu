@@ -19,6 +19,10 @@ int main(int argc, char* argv[]) {
 
   std::size_t N = std::pow(n,dim);
 
+  cudaDeviceProp prop;
+  cudaGetDeviceProperties(&prop,std::stoi(argv[2]));
+  std::cout << prop.name << std::endl;
+
   Timer watch;
 
   thrust::host_vector<Real> vec(N);

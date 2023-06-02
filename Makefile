@@ -29,6 +29,7 @@ INPUT = quakins.input
 
 $(shell mkdir -p ${BLD})
 
+MACRO = -D ANYHOW
 
 CPP = ${wildcard ${SRC}/*.cpp}
 CU  = ${wildcard ${SRC}/*.cu}
@@ -45,10 +46,10 @@ ${BLD}/${EXE}: ${MAINO} ${CPPOBJ}
 	${CXX} $^ ${NVCFlAG} ${LIBFLAG} -o $@
 
 ${MAINO}: ${MAINCU}
-	${CXX} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
+	${CXX} ${MACRO} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 ${BLD}/%.o: ${SRC}/%.cpp 
-	${CXX} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
+	${CXX} ${MACRO} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 run: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && ./${EXE}

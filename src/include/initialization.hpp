@@ -1,6 +1,6 @@
-#ifndef _INITIALIZATION_HPP_
-#define _INITIALIZATION_HPP_
+#pragma once
 
+#include <stdexcept>
 #include <limits>
 #include <omp.h>
 #include "util.hpp"
@@ -10,6 +10,8 @@ template <typename idx_type, typename val_type, idx_type dim>
 struct Parameters {
 
   idx_type n_dev;
+  
+  idx_type time_step_total;
 
   // time interval
   val_type dt;
@@ -49,9 +51,14 @@ template<typename idx_type, typename val_type, idx_type dim>
 void init(Parameters<idx_type,val_type, dim>* p,int mpi_rank) {
   
   std::ifstream input_file("quakins.input");
+
   auto t_map = read_box(input_file, "time");
   
   assign(p->dt, "dt", t_map);
+  assign(p->time_step_total, "step_total", t_map);
+
+  std::cout << "This shot is about to run "
+            << p->time_step_total << " steps." << std::endl;
 
   auto d_map = read_box(input_file, "domain");
   
@@ -133,6 +140,7 @@ void init(Parameters<idx_type,val_type, dim>* p,int mpi_rank) {
   assign(p->v3,"v3",v_map);
   assign(p->v4,"v4",v_map);
 
+     
   p->x1_shape = v_map["x1_shape"];
   p->x2_shape = v_map["x2_shape"];
   p->v1_shape = v_map["v1_shape"];
@@ -140,6 +148,15 @@ void init(Parameters<idx_type,val_type, dim>* p,int mpi_rank) {
 
 
   input_file.close();
+
+  // execption
+  auto step_length0 = p->dt*p->up_bound[0]/p->interval[2]; 
+  auto step_length1 = p->dt*p->up_bound[1]/p->interval[3]; 
+
+  if (  (int)step_length0>p->n_ghost[2]-2 
+      ||(int)step_length1>p->n_ghost[3]-2 )
+    throw std::invalid_argument("步子迈太大！");
+
 }
 
 template<typename idx_type, typename val_type, idx_type dim>
@@ -151,4 +168,3 @@ void init(Parameters<idx_type,val_type, dim>* p) {
 
 } // namespace quakins
 
-#endif /* _INITIALIZATION_HPP_ */

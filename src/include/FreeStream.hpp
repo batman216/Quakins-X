@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <thrust/tuple.h>
 #include <thrust/copy.h>
 #include <thrust/for_each.h>
@@ -152,7 +153,6 @@ public:
 
       a = std::modf(alpha[i],&shift_f);
       shift = -static_cast<int>(shift_f);
-      if (std::abs(shift)>4) std::cout<< "!!!!!!!!!!!!!!!" << std::endl;
 
       auto zitor_neg_begin 
             = make_zip_iterator(thrust::make_tuple(
