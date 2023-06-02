@@ -1,4 +1,4 @@
-EXE = quakins
+EXE = test
 CXX = nvcc
 
 CUDA_VERSION ?= 12.0
@@ -30,25 +30,13 @@ INPUT = quakins.input
 $(shell mkdir -p ${BLD})
 
 
-CPP = ${wildcard ${SRC}/*.cpp}
-CU  = ${wildcard ${SRC}/*.cu}
-HPP = ${wildcard ${SRC}/include/*.hpp}
+MAIN = ReorderCopyTest
 
-CPPOBJ = ${patsubst ${SRC}/%.cpp,${BLD}/%.o,${CPP}}
+MAINCU = ${MAIN}.cu
+CPP = ../src/*.cpp
 
-MAIN = main
-
-MAINCU = ${SRC}/${MAIN}.cu
-MAINO = ${BLD}/${MAIN}.o
-
-${BLD}/${EXE}: ${MAINO} ${CPPOBJ}
-	${CXX} $^ ${NVCFlAG} ${LIBFLAG} -o $@
-
-${MAINO}: ${MAINCU}
-	${CXX} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
-
-${BLD}/%.o: ${SRC}/%.cpp 
-	${CXX} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
+${EXE}: ${MAINCU} ${CPP}
+	${CXX} $^ ${NVCFlAG} ${INCFLAG} ${LIBFLAG} -o $@
 
 run: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && ./${EXE}

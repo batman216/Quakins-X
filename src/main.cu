@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
   _f_electron.resize(p->n_1d_tot);
   watch.tock();
 
-  watch.tick("Copy from GPU to CPU...");
+  watch.tick("Copy from GPU to CPU..."); //-------------------------------
   #pragma omp parallel for
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
                  _f_electron.begin() + i*(p->n_1d_per_dev));
 
   }
-  watch.tock();
+  watch.tock(); //--------------------------------------------------------
 
   std::ofstream fbout("wfb.qout",std::ios::out);
   fbout << _f_electron ;
@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
   watch.tick("push...");
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
-    for (std::size_t step=0; step<80; step++) {
+    for (std::size_t step=0; step<400; step++) {
       fsSolverX1(f_e_buff[i]->begin(),
                  f_e_buff[i]->end(),
                  p->n_1d_per_dev/p->n_tot_local[0],i);
