@@ -9,63 +9,12 @@
 #include <thrust/functional.h>
 #include <thrust/transform.h>
 #include <thrust/adjacent_difference.h>
+
 #include <fstream>
 
 
 #include "crtp.hpp"
-
-template <typename Iterator>
-class strided_chunk_range
-{
-public:
-
-  typedef typename thrust::iterator_difference<
-                        Iterator>::type difference_type;
-  struct stride_functor : 
-  public thrust::unary_function<difference_type,difference_type> {
-    difference_type stride;
-    int chunk;
-    stride_functor(difference_type stride, int chunk)
-    : stride(stride), chunk(chunk) {}
-    __host__ __device__
-    difference_type operator()(const difference_type& i) const {
-      int pos = i/chunk;
-      return ((pos * stride) + (i-(pos*chunk)));
-    }
-  };
-
-  typedef typename thrust::counting_iterator<difference_type>                   CountingIterator;
-  typedef typename thrust::transform_iterator<stride_functor, CountingIterator> TransformIterator;
-  typedef typename thrust::permutation_iterator<Iterator,TransformIterator>     PermutationIterator;
-
-  // type of the strided_range iterator
-  typedef PermutationIterator iterator;
-
-  // construct strided_range for the range [first,last)
-  strided_chunk_range(Iterator first, Iterator last, 
-                      difference_type stride, int chunk)
-  : first(first), last(last), stride(stride), chunk(chunk) {assert(chunk<=stride);}
-
-  iterator begin(void) const {
-    return PermutationIterator(first,
-              TransformIterator(CountingIterator(0),
-                                stride_functor(stride, chunk)));
-  }
-  
-  iterator end(void) const
-  {
-    int lmf = last-first;
-    int nfs = lmf/stride;
-    int rem = lmf-(nfs*stride);
-    return begin() + (nfs*chunk) + ((rem<chunk)?rem:chunk);
-  }
-
-  protected:
-    Iterator first;
-    Iterator last;
-    difference_type stride;
-    int chunk;
-};
+#include "util.hpp"
 
 template <typename idx_type, typename val_type, idx_type dim>
 struct Parameters;
@@ -90,6 +39,7 @@ class FreeStream {
   thrust::host_vector<val_type> alpha;
 
 public:
+  
   FreeStream(Parameters<idx_type,val_type,dim> *p,val_type dt) :
   n_bd(p->n_ghost[xdim]), nx(p->n_tot_local[xdim]-p->n_ghost[xdim]*2), 
   nv(p->n_tot_local[vdim]), n_tot(p->n_1d_per_dev), dx(p->interval[xdim]) {
@@ -117,31 +67,10 @@ public:
   void operator()(itor_type itor_begin, itor_type itor_end, 
                 idx_type n_chunk,int gpu) {
 
-    std::ofstream pout("phi"+std::to_string(gpu),std::ios::out);
     // the outermost dimension is calculated sequentially
     std::size_t n_step = n_tot/n_chunk; 
 
-    // prepare the flux function
     thrust::device_vector<val_type> flux(n_chunk);
-    
-    // Boundary Condition --------------------------------------
-    strided_chunk_range<itor_type> 
-      left_inside(itor_begin+n_bd,itor_end-n_bd,nx+2*n_bd, n_bd);
-    strided_chunk_range<itor_type> 
-      left_outside(itor_begin,itor_end-n_bd,nx+2*n_bd, n_bd);
-    strided_chunk_range<itor_type> 
-      right_inside(itor_begin+nx,itor_end-n_bd,nx+2*n_bd, n_bd);
-    strided_chunk_range<itor_type> 
-      right_outside(itor_begin+nx+n_bd,itor_end-n_bd,nx+2*n_bd, n_bd);
-
-    thrust::copy(thrust::device,
-                 left_inside.begin(),left_inside.end(),
-                 right_outside.begin());
-    thrust::copy(thrust::device,
-                 right_inside.begin(),right_inside.end(),
-                 left_outside.begin());
-    // ---------------------------------------------------------
-    constexpr bool print_flux = 0;
 
     val_type a, shift_f;
     int shift;
@@ -184,16 +113,10 @@ public:
                                   flux.begin(),flux.end(),
                                   flux.begin());
 
-      if constexpr (print_flux) {
-        thrust::copy(flux.begin(),flux.end(),
-                   std::ostream_iterator<val_type>(pout," "));
-        pout << std::endl;
-      }
-
       // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
       thrust::transform(thrust::device,
-                        flux.begin()+n_bd,flux.end()-n_bd,
-                        itor_begin_l+n_bd,itor_begin_l+n_bd, _2 - _1);
+                        flux.begin(),flux.end(),
+                        itor_begin_l,itor_begin_l, _2-_1);
 
       itor_begin_l += n_chunk;
     } // v < 0
@@ -205,10 +128,10 @@ public:
       shift = static_cast<int>(-shift_f);
 
       auto zitor_pos_begin 
-      = make_zip_iterator(thrust::make_tuple(
-                          itor_begin_l+shift-1,
-                          itor_begin_l+shift,  
-                          itor_begin_l+shift+1));
+           = make_zip_iterator(thrust::make_tuple(
+                               itor_begin_l+shift-1,
+                               itor_begin_l+shift,  
+                               itor_begin_l+shift+1));
 
       thrust::transform(thrust::device, 
                         zitor_pos_begin+n_bd-1,
@@ -233,16 +156,10 @@ public:
                                   flux.begin(),flux.end(),
                                   flux.begin());
 
-      if constexpr (print_flux) {
-        thrust::copy(flux.begin(),flux.end(),
-                   std::ostream_iterator<val_type>(pout," "));
-        pout << std::endl;
-      }
-
       // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
       thrust::transform(thrust::device,
-                        flux.begin()+n_bd,flux.end()-n_bd,
-                        itor_begin_l+n_bd,itor_begin_l+n_bd, _2 - _1);
+                        flux.begin(),flux.end(),
+                        itor_begin_l,itor_begin_l, _2-_1);
 
       itor_begin_l += n_chunk;
     } // v > 0

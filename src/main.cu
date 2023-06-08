@@ -16,19 +16,22 @@
 #include "include/Timer.hpp"
 #include "include/ReorderCopy.hpp"
 #include "include/FreeStream.hpp"
+#include "include/BoundaryCondition.hpp"
 #include "include/Integrator.hpp"
 
+using Nums = std::size_t;
 using Real = float;
 
-constexpr std::size_t dim = 4;
+
+constexpr Nums dim = 4;
 
 
 int main(int argc, char* argv[]) {
 
   Timer watch;
 
-  Parameters<std::size_t,Real,dim> *p = 
-             new Parameters<std::size_t,Real,dim>;
+  Parameters<Nums,Real,dim> *p = 
+             new Parameters<Nums,Real,dim>;
 
   try { quakins::init(p); }
   catch (std::invalid_argument& e) 
@@ -38,62 +41,78 @@ int main(int argc, char* argv[]) {
     return -1;
 #endif
   }
+  int devs[2] = {0,1};
   
-  std::size_t nx1=p->n[2], nx2=p->n[3];
-  std::size_t nv1=p->n[0], nv2=p->n[1];
+  Nums nx1=p->n[2], nx2=p->n[3];
+  Nums nx1bd=p->n_ghost[2], nx2bd=p->n_ghost[3];
+  Nums nx1tot=p->n_tot[2], nx2tot=p->n_tot_local[3];
+  Nums nv1=p->n[0], nv2=p->n[1];
   Real v1min=p->low_bound[0], v1max=p->up_bound[0];
   Real v2min=p->low_bound[1], v2max=p->up_bound[1];
 
-  std::vector<thrust::device_vector<Real>*> f_e, f_e_buff,intg_buff, dens_e;
+  std::vector<thrust::device_vector<Real>*> 
+    l_send_buff, l_recv_buff, r_send_buff, r_recv_buff, 
+    f_e, f_e_buff,intg_buff, dens_e;
 
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
+  Nums comm_size = p->n_ghost[3]*nx1tot*nv1*nv2;
+  for (auto id : devs) {
+    cudaSetDevice(id);
     f_e.push_back(new thrust::device_vector
-                    <Real>{static_cast<std::size_t>(p->n_1d_per_dev)});
+                    <Real>{p->n_1d_per_dev});
     f_e_buff.push_back(new thrust::device_vector
-                    <Real>{static_cast<std::size_t>(p->n_1d_per_dev)});
+                    <Real>{p->n_1d_per_dev});
     intg_buff.push_back(new thrust::device_vector
-                    <Real>{static_cast<std::size_t>(p->n_1d_per_dev/nv1)});
+                    <Real>{p->n_1d_per_dev/nv1});
     dens_e.push_back(new thrust::device_vector
-                    <Real>{static_cast<std::size_t>(p->n_1d_per_dev/nv1/nv2)});
-
+                    <Real>{p->n_1d_per_dev/nv1/nv2});
+    l_send_buff.push_back(new thrust::device_vector
+                    <Real>{comm_size});
+    l_recv_buff.push_back(new thrust::device_vector
+                    <Real>{comm_size});
+    r_send_buff.push_back(new thrust::device_vector
+                    <Real>{comm_size});
+    r_recv_buff.push_back(new thrust::device_vector
+                    <Real>{comm_size});
   }
 
   quakins::PhaseSpaceInitialization
-          <std::size_t,Real,dim>  phaseSpaceInit(p);
+          <Nums,Real,dim>  phaseSpaceInit(p);
 
-  std::array<std::size_t,4> order1 = {2,3,1,0},
-                            order2 = {3,2,0,1};
+  std::array<Nums,4> order1 = {2,3,1,0},
+                     order2 = {1,0,3,2},
+                     order3 = {2,3,1,0};
 
-  std::array<std::size_t,4> n_now = p->n_tot_local;
-  quakins::ReorderCopy<std::size_t,Real,dim> copy1(n_now,order1);
-  
-  thrust::gather(order1.begin(),order1.end(),p->n_tot_local.begin(),
-                n_now.begin());
+  std::array<Nums,4> n_now_1 = p->n_tot_local;
+  std::array<Nums,4> n_now_2, n_now_3, n_now_4;
+  quakins::ReorderCopy<Nums,Real,dim> copy1(n_now_1,order1);
+  thrust::gather(order1.begin(),order1.end(),
+                 n_now_1.begin(), n_now_2.begin());
+  quakins::ReorderCopy<Nums,Real,dim> copy2(n_now_2,order2);
+  thrust::gather(order2.begin(),order2.end(),
+                 n_now_2.begin(), n_now_3.begin());
+  quakins::ReorderCopy<Nums,Real,dim> copy3(n_now_3,order3);
+  thrust::gather(order3.begin(),order3.end(),
+                 n_now_3.begin(), n_now_4.begin());
 
-  quakins::ReorderCopy<std::size_t,Real,dim> copy2(n_now,order2);
-  
-  FreeStream<std::size_t,Real,dim,2,0> fsSolverX1(p,p->dt*.5);
-  FreeStream<std::size_t,Real,dim,3,1> fsSolverX2(p,p->dt*.5);
+  std::copy(n_now_2.begin(),n_now_2.end(),
+            std::ostream_iterator<Nums>(std::cout," "));
+  std::cout << std::endl;
+  std::copy(n_now_3.begin(),n_now_3.end(),
+            std::ostream_iterator<Nums>(std::cout," "));
+  std::cout << std::endl;
+  std::copy(n_now_4.begin(),n_now_4.end(),
+            std::ostream_iterator<Nums>(std::cout," "));
+  std::cout << std::endl;
 
-  watch.tick("Phase space initialization directly on devices...");
-  #pragma omp parallel for
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
 
-    phaseSpaceInit(thrust::device, 
-                   f_e[i]->begin(),
-                   p->n_1d_per_dev,p->n_1d_per_dev*i);
-    
-    copy1(f_e[i]->begin(),f_e[i]->end(),f_e_buff[i]->begin());
+  FreeStream<Nums,Real,dim,2,0> fsSolverX1(p,p->dt*.5);
+  FreeStream<Nums,Real,dim,3,1> fsSolverX2(p,p->dt*.5);
 
-  }
-  watch.tock();
+  quakins::BoundaryCondition<Nums,PeriodicBoundary>
+    boundX1(nx1,nx1bd);
 
-  watch.tick("Allocating memory for phase space on the host...");
-  thrust::host_vector<Real> _f_electron;
-  _f_electron.resize(p->n_1d_tot);
-  watch.tock();
+  quakins::BoundaryCondition<Nums,PeriodicBoundaryPara>
+    boundX2(nx2,nx2bd);
 
   quakins::Integrator<Real> 
     integral1(nv1,p->n_1d_per_dev/nv1,v1min,v1max);
@@ -101,97 +120,142 @@ int main(int argc, char* argv[]) {
     integral2(nv2,p->n_1d_per_dev/nv1/nv2,v2min,v2max);
   thrust::host_vector<Real> _dens_e(p->n_1d_tot/nv1/nv2);
 
-  watch.tick("Copy from GPU to CPU..."); //-------------------------------
+
+  watch.tick("Phase space initialization directly on devices..."); //------
   #pragma omp parallel for
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
-    copy2(f_e_buff[i]->begin(),f_e_buff[i]->end(),f_e[i]->begin());
-
-    thrust::copy(f_e[i]->begin(),f_e[i]->end(),
-                 _f_electron.begin() + i*(p->n_1d_per_dev));
-
-    integral1(f_e[i]->begin(),intg_buff[i]->begin());
-    integral2(intg_buff[i]->begin(), dens_e[i]->begin());
-        
-    thrust::copy(dens_e[i]->begin(),dens_e[i]->end(),
-                 _dens_e.begin() + i*(p->n_1d_per_dev/nv1/nv2));
-
+  for (auto id : devs) {
+    cudaSetDevice(id);
+    phaseSpaceInit(thrust::device, 
+                   f_e[id]->begin(), p->n_1d_per_dev,id);
   }
-  watch.tock(); //========================================================
-
-  watch.tick("Write to file..."); //--------------------------------------
-  std::ofstream fbout("wfb.qout",std::ios::out);
-  fbout << _f_electron ;
-  fbout.close();
-  watch.tock(); //========================================================
-   
-  
-      watch.tick("Main Loop start..."); //-----------------------------------------------
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
-
-    for (std::size_t step=0; step<p->time_step_total; step++) {
-      fsSolverX1(f_e_buff[i]->begin(),
-                 f_e_buff[i]->end(),
-                 p->n_1d_per_dev/p->n_tot_local[0],i);
-
-      copy2(f_e_buff[i]->begin(),f_e_buff[i]->end(),f_e[i]->begin());
-    }
-  }
-  watch.tock(); //-------------------------------------------------------
-
+  watch.tock(); //=========================================================
   ncclComm_t comm[p->n_dev];
   cudaStream_t *stream = (cudaStream_t *) malloc(sizeof(cudaStream_t) * 2);
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
-    cudaStreamCreate(stream+i);
-  }
-  int devs[2] = {0,1};
   ncclCommInitAll(comm,p->n_dev,devs);
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
-    cudaStreamCreate(stream+i);
+  for (auto id : devs) {
+    cudaSetDevice(id);
+    cudaStreamCreate(stream+id);
+  }    
+  watch.tick("Main Loop start..."); //------------------------------------
+  std::string flag = {'l','r'};
+  std::ofstream dout("dens_e.qout",std::ios::out);
+  for (Nums step=0; step<p->time_step_total; step++) {
+    for (auto id : devs) {
+      cudaSetDevice(id);
+      if (id==0) {
+        thrust::copy(f_e[id]->end()-2*comm_size,f_e[id]->end()-comm_size, 
+                     r_send_buff[id]->begin());
+        thrust::copy(f_e[id]->begin()+comm_size,f_e[id]->begin()+2*comm_size, 
+                     l_send_buff[id]->begin());
+      }
+      if (id==p->n_dev-1) {
+        thrust::copy(f_e[id]->begin()+comm_size,f_e[id]->begin()+2*comm_size, 
+                     l_send_buff[id]->begin());
+        thrust::copy(f_e[id]->end()-2*comm_size,f_e[id]->end()-comm_size, 
+                     r_send_buff[id]->begin());
+      }
+      cudaStreamCreate(stream+id);
+      cudaStreamSynchronize(stream[id]);
+    }
+    watch.tick("NCCL communicating..."); //----------------------------------
+    ncclGroupStart();// -->  
+    ncclSend(thrust::raw_pointer_cast(l_send_buff[1]->data()),
+             comm_size, ncclFloat, 0, comm[1], stream[1]); 
+    ncclRecv(thrust::raw_pointer_cast(r_recv_buff[0]->data()),
+             comm_size, ncclFloat, 1, comm[0], stream[0]); 
+
+    ncclSend(thrust::raw_pointer_cast(l_send_buff[0]->data()),
+             comm_size, ncclFloat, 1, comm[0], stream[0]); 
+    ncclRecv(thrust::raw_pointer_cast(r_recv_buff[1]->data()),
+             comm_size, ncclFloat, 0, comm[1], stream[1]); 
+             
+    ncclGroupEnd();
+
+    ncclGroupStart();// <--
+  
+    ncclSend(thrust::raw_pointer_cast(r_send_buff[1]->data()),
+             comm_size, ncclFloat, 0, comm[1], stream[1]); 
+    ncclRecv(thrust::raw_pointer_cast(l_recv_buff[0]->data()),
+             comm_size, ncclFloat, 1, comm[0], stream[0]); 
+
+    ncclSend(thrust::raw_pointer_cast(r_send_buff[0]->data()),
+             comm_size, ncclFloat, 1, comm[0], stream[0]); 
+    ncclRecv(thrust::raw_pointer_cast(l_recv_buff[1]->data()),
+             comm_size, ncclFloat, 0, comm[1], stream[1]); 
+             
+    ncclGroupEnd();
+    for (auto id : devs) {
+      cudaSetDevice(id);
+      cudaStreamSynchronize(stream[id]);
+    }  
+    watch.tock(); //=========================================================
+
+    #pragma omp parallel for
+    for (auto id : devs) {
+      cudaSetDevice(id);
+      cudaStreamSynchronize(stream[id]);
+      if (id==0) {
+        thrust::copy(r_recv_buff[id]->begin(),r_recv_buff[id]->end(),
+                     f_e[id]->end()-comm_size);
+        thrust::copy(l_recv_buff[id]->begin(),l_recv_buff[id]->end(),
+                     f_e[id]->begin());
+
+      }
+      if (id==p->n_dev-1) {
+        thrust::copy(l_recv_buff[id]->begin(),l_recv_buff[id]->end(),
+                     f_e[id]->begin());
+        thrust::copy(r_recv_buff[id]->begin(),r_recv_buff[id]->end(),
+                     f_e[id]->end()-comm_size);
+      }
+      copy1(f_e[id]->begin(),f_e[id]->end(),f_e_buff[id]->begin());
+      boundX1(f_e_buff[id]->begin(),f_e_buff[id]->end(),flag[id]);
+      fsSolverX1(f_e_buff[id]->begin(),
+                 f_e_buff[id]->end(),
+                 p->n_1d_per_dev/p->n_tot_local[0],id);
+
+      copy2(f_e_buff[id]->begin(),f_e_buff[id]->end(),f_e[id]->begin());
+      //boundX2(f_e[id]->begin(),f_e[id]->end(),flag[id]);
+      fsSolverX2(f_e[id]->begin(),
+                 f_e[id]->end(),
+                 p->n_1d_per_dev/p->n_tot_local[1],id);
+      copy3(f_e[id]->begin(),f_e[id]->end(),f_e_buff[id]->begin());
+      thrust::copy(f_e_buff[id]->begin(),f_e_buff[id]->end(),f_e[id]->begin());
+      cudaStreamSynchronize(stream[id]);
+
+      integral1(f_e[id]->begin(),intg_buff[id]->begin());
+      integral2(intg_buff[id]->begin(),dens_e[id]->begin());
+    
+      thrust::copy(dens_e[id]->begin(),dens_e[id]->end(),
+                   _dens_e.begin() + id*nx1tot*nx2tot);
+    }
+    if (step%(p->dens_print_intv)==0)
+      dout << _dens_e << std::endl;
   }
+  watch.tock(); //========================================================
+
+  
+  dout.close();
 
 /*
-  watch.tick("Copy from GPU to GPU...");
-  ncclGroupStart();
-  ncclSend(thrust::raw_pointer_cast(f_e[1]->data()),
-             p->n_1d_per_dev, ncclFloat, 0, comm[1], stream[1]); 
-  ncclRecv(thrust::raw_pointer_cast(f_e_buff[0]->data()),
-             p->n_1d_per_dev, ncclFloat, 1, comm[0], stream[0]); 
-
-  ncclSend(thrust::raw_pointer_cast(f_e[0]->data()),
-             p->n_1d_per_dev, ncclFloat, 1, comm[0], stream[0]); 
-  ncclRecv(thrust::raw_pointer_cast(f_e_buff[1]->data()),
-             p->n_1d_per_dev, ncclFloat, 0, comm[1], stream[1]); 
-  ncclGroupEnd();
-  for (int i = 0; i < p->n_dev; ++i) {
-     cudaSetDevice(i);
-     cudaStreamSynchronize(stream[i]);
-  }
-  watch.tock();
-*/  
-  
-
   watch.tick("Copy from GPU to CPU...");
   #pragma omp parallel for
   for (int i=0; i<p->n_dev; i++) {
     cudaSetDevice(i);
-    
-    thrust::copy(f_e[i]->begin(),f_e[i]->end(),
+    thrust::copy(f_e_buff[i]->begin(),f_e_buff[i]->end(),
                  _f_electron.begin() + i*(p->n_1d_per_dev));
 
   }
   watch.tock();
 
-  std::ofstream dout("dens_e.qout",std::ios::out);
-  dout << _dens_e ;
-  dout.close();
 
+  watch.tick("Allocating memory for phase space on the host...");
+  thrust::host_vector<Real> _f_electron;
+  _f_electron.resize(p->n_1d_tot);
+  watch.tock();
   std::ofstream fout("wf.qout",std::ios::out);
   fout << _f_electron ;
   fout.close();
-
+  */
 }
+
 

@@ -49,7 +49,7 @@ struct Integrator {
                           thrust::make_counting_iterator(static_cast<int>(n*n_batch)),
                           titor_begin,                        // input value
                           thrust::make_discard_iterator(),    // output key
-                          out_begin,                         // output value
+                          out_begin,                          // output value
                           binary_pred);
   } // end of operator()
 

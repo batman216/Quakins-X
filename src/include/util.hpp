@@ -1,5 +1,5 @@
-#ifndef _UTIL_HPP_
-#define _UTIL_HPP_
+#pragma once 
+
 #include <cuda_runtime.h>
 #include <thrust/copy.h>
 #include <string>
@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 
 // dynamic polyorphism
 template <typename t_Product> 
@@ -70,6 +72,59 @@ public:
 };
 
 
+template <typename Iterator>
+class strided_chunk_range
+{
+public:
+
+  typedef typename thrust::iterator_difference<
+                        Iterator>::type difference_type;
+  struct stride_functor : 
+  public thrust::unary_function<difference_type,difference_type> {
+    difference_type stride;
+    int chunk;
+    stride_functor(difference_type stride, int chunk)
+    : stride(stride), chunk(chunk) {}
+    __host__ __device__
+    difference_type operator()(const difference_type& i) const {
+      int pos = i/chunk;
+      return ((pos * stride) + (i-(pos*chunk)));
+    }
+  };
+
+  typedef typename thrust::counting_iterator<difference_type>                   CountingIterator;
+  typedef typename thrust::transform_iterator<stride_functor, CountingIterator> TransformIterator;
+  typedef typename thrust::permutation_iterator<Iterator,TransformIterator>     PermutationIterator;
+
+  // type of the strided_range iterator
+  typedef PermutationIterator iterator;
+
+  // construct strided_range for the range [first,last)
+  strided_chunk_range(Iterator first, Iterator last, 
+                      difference_type stride, int chunk)
+  : first(first), last(last), stride(stride), chunk(chunk) {assert(chunk<=stride);}
+
+  iterator begin(void) const {
+    return PermutationIterator(first,
+              TransformIterator(CountingIterator(0),
+                                stride_functor(stride, chunk)));
+  }
+  
+  iterator end(void) const
+  {
+    int lmf = last-first;
+    int nfs = lmf/stride;
+    int rem = lmf-(nfs*stride);
+    return begin() + (nfs*chunk) + ((rem<chunk)?rem:chunk);
+  }
+
+  protected:
+    Iterator first;
+    Iterator last;
+    difference_type stride;
+    int chunk;
+};
+
 
 // assign value from string
 template <class A>
@@ -94,4 +149,3 @@ std::ostream& operator<<(std::ostream& os, const Container<T>& obj) {
 }
 
 
-#endif /* _UTIL_HPP_ */

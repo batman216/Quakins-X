@@ -36,11 +36,11 @@ struct Idx2Value {
       idx_m[i] = (idx % imod) * n_dim[i] / imod;
 
     }
-    return   std::exp(-std::pow(low_bound[0]+h[0]*(idx_m[0]-n_bd[0]),2)/6)
-           * std::exp(-std::pow(low_bound[1]+h[1]*(idx_m[1]-n_bd[1]),2))
-           * std::exp(-std::pow(low_bound[3]+h[3]*(idx_m[3]-n_bd[3])-5,2))
-           * (1.+std::cos(M_PI*0.1*(low_bound[2]+h[2]*(idx_m[2]-n_bd[2])))*0.2);
-//           * std::exp(-std::pow(low_bound[2]+h[2]*(idx_m[2]-n_bd[2])-5,2))
+    return   std::exp(-std::pow(low_bound[0]+h[0]*(idx_m[0]-n_bd[0])-0.4,2)/0.1)
+           * std::exp(-std::pow(low_bound[1]+h[1]*(idx_m[1]-n_bd[1])-2,2)/0.1)
+           * std::exp(-std::pow(low_bound[3]+h[3]*(idx_m[3]-n_bd[3])-3,2)/0.4)
+           * std::exp(-std::pow(low_bound[2]+h[2]*(idx_m[2]-n_bd[2])-4,2)/0.4);
+           //* (1.+std::cos(M_PI*0.1*(low_bound[2]+h[2]*(idx_m[2]-n_bd[2])))*0.2);
  
   }
 
@@ -64,11 +64,13 @@ public:
   template <typename itor_type, typename ExecutionPolicy>
   __host__ 
   void operator()(const ExecutionPolicy & exec,
-                  itor_type itor_begin, idx_type num, idx_type start) {
+                  itor_type itor_begin, idx_type num, idx_type id) {
 
+    idx_type n_shift = id*p->n_1d_per_dev-id*2*p->n_ghost[dim-1]
+                       *p->n_1d_per_dev/p->n_tot_local[dim-1];
     thrust::transform(exec, 
-                      thrust::make_counting_iterator(start),
-                      thrust::make_counting_iterator(num+start), 
+                      thrust::make_counting_iterator(n_shift),
+                      thrust::make_counting_iterator(num+n_shift), 
                       itor_begin,
                       Idx2Value(p->n_tot,p->n_ghost, p->low_bound,p->interval));
 
