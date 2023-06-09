@@ -143,9 +143,8 @@ int main(int argc, char* argv[]) {
 
   }
 
-  std::ofstream d0out("init_dens.qout",std::ios::out);
-  d0out << _dens_e;
-  d0out.close();
+  std::ofstream dout("dens_e.qout",std::ios::out);
+  dout << _dens_e;
 
   watch.tock(); //=========================================================
   ncclComm_t comm[p->n_dev];
@@ -158,7 +157,6 @@ int main(int argc, char* argv[]) {
   watch.tick("Main Loop start..."); //------------------------------------
   std::string flag = {'l','r'}; 
   int rank_end = p->n_dev-1;
-  std::ofstream dout("dens_e.qout",std::ios::out);
   for (Nums step=0; step<p->time_step_total; step++) {
     for (auto id : devs) {
       cudaSetDevice(id);
@@ -201,7 +199,7 @@ int main(int argc, char* argv[]) {
     }  
     watch.tock(); //=========================================================
 
-    watch.tick("pushing..."); //----------------------------------
+    watch.tick("pushing..."); //---------------------------------------------
     #pragma omp parallel for
     for (auto id : devs) {
       cudaSetDevice(id);
