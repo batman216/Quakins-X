@@ -18,6 +18,7 @@
 #include "include/FreeStream.hpp"
 #include "include/BoundaryCondition.hpp"
 #include "include/Integrator.hpp"
+#include "include/PoissonSolver.hpp"
 
 using Nums = std::size_t;
 using Real = float;
@@ -41,7 +42,9 @@ int main(int argc, char* argv[]) {
     return -1;
 #endif
   }
-  int devs[2] = {0,1};
+  int devs[p->n_dev];
+  std::iota(devs,devs+p->n_dev,0);
+
   
   Nums nx1=p->n[2], nx2=p->n[3];
   Nums nx1bd=p->n_ghost[2], nx2bd=p->n_ghost[3];
@@ -49,6 +52,8 @@ int main(int argc, char* argv[]) {
   Nums nv1=p->n[0], nv2=p->n[1];
   Real v1min=p->low_bound[0], v1max=p->up_bound[0];
   Real v2min=p->low_bound[1], v2max=p->up_bound[1];
+  Real x1min=p->low_bound[2], x1max=p->up_bound[2];
+  Real x2min=p->low_bound[3], x2max=p->up_bound[3];
 
   std::vector<thrust::device_vector<Real>*> 
     l_send_buff, l_recv_buff, r_send_buff, r_recv_buff, 
@@ -114,6 +119,9 @@ int main(int argc, char* argv[]) {
   quakins::BoundaryCondition<Nums,PeriodicBoundaryPara>
     boundX2(nx2,nx2bd);
 
+  quakins::PoissonSolver<Nums,Real,2> 
+    poissonSolver({nx1,nx2},{x1min,x2min, x1max,x2max});
+
   quakins::Integrator<Real> 
     integral1(nv1,p->n_1d_per_dev/nv1,v1min,v1max);
   quakins::Integrator<Real> 
@@ -137,52 +145,44 @@ int main(int argc, char* argv[]) {
     cudaStreamCreate(stream+id);
   }    
   watch.tick("Main Loop start..."); //------------------------------------
-  std::string flag = {'l','r'};
+  std::string flag = {'l','r'}; 
+  int rank_end = p->n_dev-1;
   std::ofstream dout("dens_e.qout",std::ios::out);
   for (Nums step=0; step<p->time_step_total; step++) {
     for (auto id : devs) {
       cudaSetDevice(id);
-      if (id==0) {
-        thrust::copy(f_e[id]->end()-2*comm_size,f_e[id]->end()-comm_size, 
-                     r_send_buff[id]->begin());
-        thrust::copy(f_e[id]->begin()+comm_size,f_e[id]->begin()+2*comm_size, 
-                     l_send_buff[id]->begin());
-      }
-      if (id==p->n_dev-1) {
-        thrust::copy(f_e[id]->begin()+comm_size,f_e[id]->begin()+2*comm_size, 
-                     l_send_buff[id]->begin());
-        thrust::copy(f_e[id]->end()-2*comm_size,f_e[id]->end()-comm_size, 
-                     r_send_buff[id]->begin());
-      }
+      thrust::copy(f_e[id]->end()-2*comm_size,f_e[id]->end()-comm_size, 
+                   r_send_buff[id]->begin());
+      thrust::copy(f_e[id]->begin()+comm_size,f_e[id]->begin()+2*comm_size, 
+                   l_send_buff[id]->begin());
       cudaStreamCreate(stream+id);
       cudaStreamSynchronize(stream[id]);
     }
     watch.tick("NCCL communicating..."); //----------------------------------
-    ncclGroupStart();// -->  
-    ncclSend(thrust::raw_pointer_cast(l_send_buff[1]->data()),
-             comm_size, ncclFloat, 0, comm[1], stream[1]); 
-    ncclRecv(thrust::raw_pointer_cast(r_recv_buff[0]->data()),
-             comm_size, ncclFloat, 1, comm[0], stream[0]); 
-
+    ncclGroupStart();// <--
+    for (int id = 1; id<=rank_end; id++) {
+      ncclSend(thrust::raw_pointer_cast(l_send_buff[id]->data()),
+             comm_size, ncclFloat, id-1, comm[id], stream[id]); 
+      ncclRecv(thrust::raw_pointer_cast(r_recv_buff[id-1]->data()),
+             comm_size, ncclFloat, id, comm[id-1], stream[id-1]); 
+    }
     ncclSend(thrust::raw_pointer_cast(l_send_buff[0]->data()),
-             comm_size, ncclFloat, 1, comm[0], stream[0]); 
-    ncclRecv(thrust::raw_pointer_cast(r_recv_buff[1]->data()),
-             comm_size, ncclFloat, 0, comm[1], stream[1]); 
-             
+             comm_size, ncclFloat, rank_end, comm[0], stream[0]); 
+    ncclRecv(thrust::raw_pointer_cast(r_recv_buff[rank_end]->data()),
+             comm_size, ncclFloat, 0, comm[rank_end], stream[rank_end]); 
     ncclGroupEnd();
 
-    ncclGroupStart();// <--
-  
-    ncclSend(thrust::raw_pointer_cast(r_send_buff[1]->data()),
-             comm_size, ncclFloat, 0, comm[1], stream[1]); 
+    ncclGroupStart();// -->
+    for (int id = 0; id<rank_end; id++) {
+      ncclSend(thrust::raw_pointer_cast(r_send_buff[id]->data()),
+               comm_size, ncclFloat, id+1, comm[id], stream[id]); 
+      ncclRecv(thrust::raw_pointer_cast(l_recv_buff[id+1]->data()),
+               comm_size, ncclFloat, id, comm[id+1], stream[id+1]); 
+    }
+    ncclSend(thrust::raw_pointer_cast(r_send_buff[rank_end]->data()),
+             comm_size, ncclFloat, 0, comm[rank_end], stream[rank_end]); 
     ncclRecv(thrust::raw_pointer_cast(l_recv_buff[0]->data()),
-             comm_size, ncclFloat, 1, comm[0], stream[0]); 
-
-    ncclSend(thrust::raw_pointer_cast(r_send_buff[0]->data()),
-             comm_size, ncclFloat, 1, comm[0], stream[0]); 
-    ncclRecv(thrust::raw_pointer_cast(l_recv_buff[1]->data()),
-             comm_size, ncclFloat, 0, comm[1], stream[1]); 
-             
+             comm_size, ncclFloat, rank_end, comm[0], stream[0]); 
     ncclGroupEnd();
     for (auto id : devs) {
       cudaSetDevice(id);
@@ -190,23 +190,16 @@ int main(int argc, char* argv[]) {
     }  
     watch.tock(); //=========================================================
 
+    watch.tick("pushing..."); //----------------------------------
     #pragma omp parallel for
     for (auto id : devs) {
       cudaSetDevice(id);
       cudaStreamSynchronize(stream[id]);
-      if (id==0) {
-        thrust::copy(r_recv_buff[id]->begin(),r_recv_buff[id]->end(),
-                     f_e[id]->end()-comm_size);
-        thrust::copy(l_recv_buff[id]->begin(),l_recv_buff[id]->end(),
-                     f_e[id]->begin());
+      thrust::copy(l_recv_buff[id]->begin(),l_recv_buff[id]->end(),
+                   f_e[id]->begin());
+      thrust::copy(r_recv_buff[id]->begin(),r_recv_buff[id]->end(),
+                   f_e[id]->end()-comm_size);
 
-      }
-      if (id==p->n_dev-1) {
-        thrust::copy(l_recv_buff[id]->begin(),l_recv_buff[id]->end(),
-                     f_e[id]->begin());
-        thrust::copy(r_recv_buff[id]->begin(),r_recv_buff[id]->end(),
-                     f_e[id]->end()-comm_size);
-      }
       copy1(f_e[id]->begin(),f_e[id]->end(),f_e_buff[id]->begin());
       boundX1(f_e_buff[id]->begin(),f_e_buff[id]->end(),flag[id]);
       fsSolverX1(f_e_buff[id]->begin(),
@@ -228,10 +221,14 @@ int main(int argc, char* argv[]) {
       thrust::copy(dens_e[id]->begin(),dens_e[id]->end(),
                    _dens_e.begin() + id*nx1tot*nx2tot);
     }
+    watch.tock(); //==========================================================
+
+   
+
     if (step%(p->dens_print_intv)==0)
       dout << _dens_e << std::endl;
   }
-  watch.tock(); //========================================================
+  watch.tock(); //============================================================
 
   
   dout.close();
