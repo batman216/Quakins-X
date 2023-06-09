@@ -111,7 +111,7 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
 
   // NCCL communination grid on the outermost dimension
   p->n_tot[3] += p->n_ghost[3]*(p->n_dev-1)*2;
-  p->n_tot_local[3] += p->n_ghost[3];
+  p->n_tot_local[3] += p->n_ghost[3]*(p->n_dev-1);
     
   p->n_1d_tot = std::accumulate(p->n_tot.begin(),p->n_tot.end(),
                 static_cast<idx_type>(1),std::multiplies<idx_type>());
