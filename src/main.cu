@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::ofstream dout("dens_e.qout",std::ios::out);
-  dout << _dens_e;
+  dout << _dens_e << std::endl;
 
   watch.tock(); //=========================================================
   ncclComm_t comm[p->n_dev];
