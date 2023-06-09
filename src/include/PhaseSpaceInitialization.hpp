@@ -66,7 +66,7 @@ public:
   void operator()(const ExecutionPolicy & exec,
                   itor_type itor_begin, idx_type num, idx_type id) {
 
-    idx_type n_shift = id*p->n_1d_per_dev-id*2*p->n_ghost[dim-1]
+    idx_type n_shift = id*p->n_1d_per_dev - id*2*p->n_ghost[dim-1]
                        *p->n_1d_per_dev/p->n_tot_local[dim-1];
     thrust::transform(exec, 
                       thrust::make_counting_iterator(n_shift),

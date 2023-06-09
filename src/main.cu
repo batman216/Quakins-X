@@ -135,7 +135,18 @@ int main(int argc, char* argv[]) {
     cudaSetDevice(id);
     phaseSpaceInit(thrust::device, 
                    f_e[id]->begin(), p->n_1d_per_dev,id);
+    integral1(f_e[id]->begin(),intg_buff[id]->begin());
+    integral2(intg_buff[id]->begin(),dens_e[id]->begin());
+    
+    thrust::copy(dens_e[id]->begin(),dens_e[id]->end(),
+               _dens_e.begin() + id*nx1tot*nx2tot);
+
   }
+
+  std::ofstream d0out("init_dens.qout",std::ios::out);
+  d0out << _dens_e;
+  d0out.close();
+
   watch.tock(); //=========================================================
   ncclComm_t comm[p->n_dev];
   cudaStream_t *stream = (cudaStream_t *) malloc(sizeof(cudaStream_t) * 2);
