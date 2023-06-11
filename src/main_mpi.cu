@@ -59,8 +59,6 @@ int main(int argc, char* argv[]) {
   
   ncclCommInitRank(&comm,mpi_size,nccl_id,mpi_rank);
 
-  Timer watch(mpi_rank);
-
   Parameters<Nums,Real,dim> *p = 
              new Parameters<Nums,Real,dim>;
 
@@ -150,13 +148,16 @@ int main(int argc, char* argv[]) {
   else if (id==mpi_size-1) flag='r';
   else flag='m';
   
-  watch.tick("Main Loop start..."); //------------------------------------
+  Timer push_watch(mpi_rank,"push");
+  Timer nccl_watch(mpi_rank,"nccl communination");
+
+  std::cout << "Main Loop start..." << std::endl;
   for (Nums step=0; step<p->time_step_total; step++) {
     thrust::copy(f_e.end()-2*comm_size,f_e.end()-comm_size, 
                  r_send_buff.begin());
     thrust::copy(f_e.begin()+comm_size,f_e.begin()+2*comm_size, 
                  l_send_buff.begin());
-    watch.tick("NCCL communicating..."); //----------------------------------
+    nccl_watch.tick("NCCL communicating..."); //----------------------------------
     ncclGroupStart();// <--
     ncclSend(thrust::raw_pointer_cast(l_send_buff.data()),
              comm_size, ncclFloat, l_rank, comm, s); 
@@ -171,9 +172,9 @@ int main(int argc, char* argv[]) {
                comm_size, ncclFloat, l_rank, comm, s); 
     ncclGroupEnd();
     cudaStreamSynchronize(s);
-    watch.tock(); //=========================================================
+    nccl_watch.tock(); //=========================================================
 
-    watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //-----------
+    push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //-----------
     
     thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),
                  f_e.begin());
@@ -198,14 +199,12 @@ int main(int argc, char* argv[]) {
     integral1(f_e.begin(),intg_buff.begin());
     integral2(intg_buff.begin(),dens_e.begin());
     
-    watch.tock(); //==========================================================
+    push_watch.tock(); //==========================================================
 
 
     if (step%(p->dens_print_intv)==0)
       dout << dens_e << std::endl;
   }
-  watch.tock(); //============================================================
-
   
   dout.close();
 /*

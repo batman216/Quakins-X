@@ -7,18 +7,23 @@
 #include <mpi.h>
 
 class Timer {
-		
-	const int mpi_rank = 0;
-	std::chrono::time_point<
-	          std::chrono::high_resolution_clock
-	          > time1, time2, time3;
+  
+  std::string name;
+  int count=0, average;
+  const int mpi_rank = 0;
+  std::chrono::time_point<
+            std::chrono::high_resolution_clock
+            > time1, time2;
+  int dt, dt_tot=0;
+
 public:
-	Timer();
-	Timer(int);
-	
-	void tick(std::string message);
-	void tock();
-	void tock(MPI_Comm);
+  Timer(std::string);
+  Timer(int, std::string);
+  ~Timer();
+  
+  void tick(std::string message);
+  void tock();
+  void tock(MPI_Comm);
 
 };
 
