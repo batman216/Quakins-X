@@ -134,8 +134,8 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
     } // display the names of GPU devices
   
     std::cout << "The Wigner function costs " 
-              << mem_size << "Mb of Memory, " 
-              << mem_size/p->n_dev << "Mb per GPU." << std::endl;
+              << 2*mem_size << "Mb of Memory, " 
+              << 2*mem_size/p->n_dev << "Mb per GPU." << std::endl;
   }
   
 

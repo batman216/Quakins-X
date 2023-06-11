@@ -148,10 +148,11 @@ int main(int argc, char* argv[]) {
   else if (id==mpi_size-1) flag='r';
   else flag='m';
   
+  Timer the_watch(mpi_rank,"This run");
   Timer push_watch(mpi_rank,"push");
   Timer nccl_watch(mpi_rank,"nccl communination");
 
-  std::cout << "Main Loop start..." << std::endl;
+  the_watch.tick("Main Loop start...");
   for (Nums step=0; step<p->time_step_total; step++) {
     thrust::copy(f_e.end()-2*comm_size,f_e.end()-comm_size, 
                  r_send_buff.begin());
@@ -206,6 +207,7 @@ int main(int argc, char* argv[]) {
       dout << dens_e << std::endl;
   }
   
+  the_watch.tock();
   dout.close();
 /*
   watch.tick("Copy from GPU to CPU...");
