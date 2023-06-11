@@ -117,6 +117,9 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
                 static_cast<idx_type>(1),std::multiplies<idx_type>());
   p->n_1d_per_dev = p->n_1d_tot / p->n_dev;
 
+  std::size_t mem_size = p->n_1d_tot*sizeof(val_type)/1048576; 
+  cudaDeviceSetLimit(cudaLimitMallocHeapSize, mem_size/p->n_dev*2.2);
+
 
   if (mpi_rank==0) {
     std::cout << "Maxium of your int type: " 
@@ -130,7 +133,6 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
       std::cout << "  " << i << ": " << dev_prop.name << std::endl;
     } // display the names of GPU devices
   
-    std::size_t mem_size = p->n_1d_tot*sizeof(val_type)/1048576; 
     std::cout << "The Wigner function costs " 
               << mem_size << "Mb of Memory, " 
               << mem_size/p->n_dev << "Mb per GPU." << std::endl;
