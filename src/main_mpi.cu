@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
   Parameters<Nums,Real,dim> *p = 
              new Parameters<Nums,Real,dim>;
 
-  try { quakins::init(p); }
+  try { quakins::init(p, mpi_rank); }
   catch (std::invalid_argument& e) 
   {
     std::cerr << e.what() << std::endl;
@@ -72,9 +72,6 @@ int main(int argc, char* argv[]) {
     return -1;
 #endif
   }
-  int devs[p->n_dev];
-  std::iota(devs,devs+p->n_dev,0);
-
   
   Nums nx1=p->n[2], nx2=p->n[3];
   Nums nx1bd=p->n_ghost[2], nx2bd=p->n_ghost[3];
@@ -87,11 +84,6 @@ int main(int argc, char* argv[]) {
   Real v2min=p->low_bound[1], v2max=p->up_bound[1];
   Real x1min=p->low_bound[2], x1max=p->up_bound[2];
   Real x2min=p->low_bound[3], x2max=p->up_bound[3];
-  
-
-
-  std::cout << mpi_rank << " " << local_rank << std::endl;
-
 
   thrust::device_vector<Real> 
     l_send_buff(comm_size), l_recv_buff(comm_size), 
@@ -153,7 +145,10 @@ int main(int argc, char* argv[]) {
   Nums l_rank = id==0? mpi_size-1 : id-1;
   Nums r_rank = id==mpi_size-1? 0 : id+1;
   
-  std::string flag = {'l','r'}; 
+  char flag;
+  if (id==0) flag='l'; 
+  else if (id==mpi_size-1) flag='r';
+  else flag='m';
   
   watch.tick("Main Loop start..."); //------------------------------------
   for (Nums step=0; step<p->time_step_total; step++) {
@@ -175,9 +170,10 @@ int main(int argc, char* argv[]) {
     ncclRecv(thrust::raw_pointer_cast(l_recv_buff.data()),
                comm_size, ncclFloat, l_rank, comm, s); 
     ncclGroupEnd();
+    cudaStreamSynchronize(s);
     watch.tock(); //=========================================================
 
-    watch.tick("pushing..."); //---------------------------------------------
+    watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //-----------
     
     thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),
                  f_e.begin());
@@ -186,12 +182,12 @@ int main(int argc, char* argv[]) {
 
       
     copy1(f_e.begin(),f_e.end(),f_e_buff.begin());
-    boundX1(f_e_buff.begin(),f_e_buff.end(),flag[id]);
+    boundX1(f_e_buff.begin(),f_e_buff.end(),flag);
     fsSolverX1(f_e_buff.begin(),
                f_e_buff.end(),
                p->n_1d_per_dev/p->n_tot_local[0],id);
     copy2(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
-    //boundX2(f_e.begin(),f_e.end(),flag[id]);
+    //boundX2(f_e.begin(),f_e.end(),flag);
     fsSolverX2(f_e.begin(),
                f_e.end(),
                p->n_1d_per_dev/p->n_tot_local[1],id);
