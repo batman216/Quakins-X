@@ -29,3 +29,22 @@ read_box(ifstream& is, string box_name) {
 
     return input_map;
 }
+
+uint64_t getHostHash(const char *string) {
+    // Based on DJB2, result = result * 33 + char
+    uint64_t result = 5381;
+    for (int c = 0; string[c] != '\0'; c++) {
+        result = ((result << 5) + result) + string[c];
+    }
+    return result;
+}
+
+void getHostName(char *hostname, int maxlen) {
+    gethostname(hostname, maxlen);
+    for (int i = 0; i < maxlen; i++) {
+        if (hostname[i] == '.') {
+            hostname[i] = '\0';
+            return;
+        }
+    }
+}

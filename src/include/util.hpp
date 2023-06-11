@@ -148,4 +148,6 @@ std::ostream& operator<<(std::ostream& os, const Container<T>& obj) {
 	return os;
 }
 
-
+// for one device per thread operation
+uint64_t getHostHash(const char *);
+void getHostName(char *, int);
