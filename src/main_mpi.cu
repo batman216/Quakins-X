@@ -21,6 +21,7 @@
 #include "include/PoissonSolver.hpp"
 #include "include/util.hpp"
 
+
 using Nums = std::size_t;
 using Real = float;
 
@@ -77,7 +78,8 @@ int main(int argc, char* argv[]) {
   Nums nv1=p->n[0], nv2=p->n[1];
   Nums nxtot = nx1tot*nx2tot;
   Nums comm_size = p->n_ghost[3]*nx1tot*nv1*nv2;
-
+  Nums dens_size = nx1tot*nx2/p->n_dev;
+  
   Real v1min=p->low_bound[0], v1max=p->up_bound[0];
   Real v2min=p->low_bound[1], v2max=p->up_bound[1];
   Real x1min=p->low_bound[2], x1max=p->up_bound[2];
@@ -90,7 +92,8 @@ int main(int argc, char* argv[]) {
     f_e(p->n_1d_per_dev), f_e_buff(p->n_1d_per_dev);
   thrust::device_vector<Real> 
     intg_buff(nxtot*nv2), dens_e(nxtot);
-
+  thrust::device_vector<Real> 
+    dens_e_tot(nx1tot*nx2), dens_e_tot_buff(nx1tot*nx2), pote_tot(nx1*nx2);
 
   std::array<Nums,4> order1 = {2,3,1,0},
                      order2 = {1,0,3,2},
@@ -108,6 +111,7 @@ int main(int argc, char* argv[]) {
   thrust::gather(order3.begin(),order3.end(),
                  n_now_3.begin(), n_now_4.begin());
 
+  quakins::ReorderCopy<Nums,Real,dim/2> dens_copy({nx1tot,nx2},{1,0});
 
   FreeStream<Nums,Real,dim,2,0> fsSolverX1(p,p->dt*.5);
   FreeStream<Nums,Real,dim,3,1> fsSolverX2(p,p->dt*.5);
@@ -118,14 +122,13 @@ int main(int argc, char* argv[]) {
   quakins::BoundaryCondition<Nums,PeriodicBoundaryPara>
     boundX2(nx2,nx2bd);
 
-  quakins::PoissonSolver<Nums,Real,2> 
+  quakins::PoissonSolver<Nums,Real,2, FFTandInv<Nums,Real,2>> 
     poissonSolver({nx1,nx2},{x1min,x2min, x1max,x2max});
 
   quakins::Integrator<Real> 
     integral1(nv1,p->n_1d_per_dev/nv1,v1min,v1max);
   quakins::Integrator<Real> 
     integral2(nv2,p->n_1d_per_dev/nv1/nv2,v2min,v2max);
-  thrust::host_vector<Real> _dens_e(p->n_1d_tot/nv1/nv2);
 
 //--------------------------------------------------------------------
   quakins::PhaseSpaceInitialization
@@ -137,7 +140,8 @@ int main(int argc, char* argv[]) {
     
 
   std::ofstream dout("dens_e@"+std::to_string(mpi_rank)+".qout",std::ios::out);
-  dout << dens_e << std::endl;
+  std::ofstream pout("potential@"+std::to_string(mpi_rank)+".qout",std::ios::out);
+  //dout << dens_e << std::endl;
 
   Nums id = mpi_rank;
   Nums l_rank = id==0? mpi_size-1 : id-1;
@@ -175,13 +179,12 @@ int main(int argc, char* argv[]) {
     cudaStreamSynchronize(s);
     nccl_watch.tock(); //=========================================================
 
-    push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //-----------
+    push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //--------
     
     thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),
                  f_e.begin());
     thrust::copy(r_recv_buff.begin(),r_recv_buff.end(),
                  f_e.end()-comm_size);
-
       
     copy1(f_e.begin(),f_e.end(),f_e_buff.begin());
     boundX1(f_e_buff.begin(),f_e_buff.end(),flag);
@@ -202,9 +205,25 @@ int main(int argc, char* argv[]) {
     
     push_watch.tock(); //==========================================================
 
+    ncclGroupStart();
+    if (mpi_rank==0) {
+      for (int r=0; r<mpi_size; r++)
+        ncclRecv(thrust::raw_pointer_cast(dens_e_tot.data())
+                 +nx1tot*nx2bd+r*nxtot, dens_size,ncclFloat,r,comm,s);
+    }
+    ncclSend(thrust::raw_pointer_cast(dens_e.data())
+             +nx1tot*nx2bd, dens_size,ncclFloat,0,comm,s);
+    ncclGroupEnd();
+  
+    dens_copy(dens_e_tot.begin(),dens_e_tot.end(),dens_e_tot_buff.begin());
+    poissonSolver(dens_e_tot_buff.begin()+nx2/p->n_dev*nx1bd,
+                  dens_e_tot_buff.end()-nx2/p->n_dev*nx1bd,
+                  pote_tot.begin());
 
-    if (step%(p->dens_print_intv)==0)
-      dout << dens_e << std::endl;
+    if (mpi_rank==0 && step%(p->dens_print_intv)==0) {
+      dout << dens_e_tot << std::endl;
+      pout << pote_tot << std::endl;
+    }
   }
   
   the_watch.tock();
