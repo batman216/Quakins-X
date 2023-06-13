@@ -11,7 +11,9 @@
 #include <numeric>
 
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 
 // dynamic polyorphism
 template <typename t_Product> 
@@ -139,9 +141,16 @@ std::map<std::string, std::string>
     read_box(std::ifstream& is,    
              std::string box_name);
 
-template <typename T,
-          template<typename...> typename Container>
-std::ostream& operator<<(std::ostream& os, const Container<T>& obj) {
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const thrust::host_vector<T>& obj) {
+	
+	thrust::copy(obj.begin(), obj.end(),
+	          std::ostream_iterator<T>(os,"	"));
+	return os;
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const thrust::device_vector<T>& obj) {
 	
 	thrust::copy(obj.begin(), obj.end(),
 	          std::ostream_iterator<T>(os,"	"));

@@ -4,18 +4,22 @@ CXX = nvcc
 CUDA_VERSION ?= 12.0
 SDK_VERSION  ?= 23.3
 
+FFTW_HOME ?= 
+EIGEN_HOME ?= /home/batman/eigen-3.4.0
 SDK_HOME  ?= /opt/nvidia/hpc_sdk/Linux_x86_64/${SDK_VERSION}
 OMP_HOME  ?= ${SDK_HOME}/compilers
 NCCL_HOME ?= ${SDK_HOME}/comm_libs/${CUDA_VERSION}/nccl
 MPI_HOME  ?= ${SDK_HOME}/comm_libs/hpcx/hpcx-2.14/ompi
 
 NVCFlAG = --extended-lambda --expt-relaxed-constexpr 
-CXXFLAG = -std=c++20 -Xcompiler -fopenmp
+CXXFLAG = -std=c++20 -Xcompiler -fopenmp 
 
-INCFLAG = -I${NCCL_HOME}/include -I${MPI_HOME}/include -I${OMP_HOME}/include
+INCFLAG = -I${NCCL_HOME}/include -I${MPI_HOME}/include \
+					-I${OMP_HOME}/include -I${FFTW_HOME}/include -I${EIGEN_HOME}
 LIBFLAG = -L${NCCL_HOME}/lib -lnccl -L${MPI_HOME}/lib -lmpi -L${OMP_HOME}/lib -lomp \
           -L${SDK_HOME}/math_libs/${CUDA_VERSION}/targets/x86_64-linux/lib          \
-          -lopen-rte -lopen-pal -lcufft 
+					-L${FFTW_HOME}/lib \
+          -lopen-rte -lopen-pal -lcufft -lcusolver -lfftw3f -lm
 	
 ifeq ($(mode),debug)
 	CXXFLAG += -g

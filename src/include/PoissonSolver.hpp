@@ -7,7 +7,7 @@ namespace quakins {
 template <typename idx_type,
           typename val_type,
           idx_type dim,
-          typename Policy = FFT<idx_type,val_type,dim>>
+          typename Policy>
 class PoissonSolver {
 
   Policy *policy;

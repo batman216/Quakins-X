@@ -94,6 +94,7 @@ int main(int argc, char* argv[]) {
     intg_buff(nxtot*nv2), dens_e(nxtot);
   thrust::device_vector<Real> 
     dens_e_tot(nx1tot*nx2), dens_e_tot_buff(nx1tot*nx2), pote_tot(nx1*nx2);
+  thrust::host_vector<Real> _dens_e_tot(nx1*nx2), _pote_tot(nx1*nx2);
 
   std::array<Nums,4> order1 = {2,3,1,0},
                      order2 = {1,0,3,2},
@@ -122,7 +123,7 @@ int main(int argc, char* argv[]) {
   quakins::BoundaryCondition<Nums,PeriodicBoundaryPara>
     boundX2(nx2,nx2bd);
 
-  quakins::PoissonSolver<Nums,Real,2, FFTandInv<Nums,Real,2>> 
+  quakins::PoissonSolver<Nums,Real,2, FFTandInvHost<Nums,Real,2>> 
     poissonSolver({nx1,nx2},{x1min,x2min, x1max,x2max});
 
   quakins::Integrator<Real> 
@@ -214,40 +215,23 @@ int main(int argc, char* argv[]) {
     ncclSend(thrust::raw_pointer_cast(dens_e.data())
              +nx1tot*nx2bd, dens_size,ncclFloat,0,comm,s);
     ncclGroupEnd();
-  
     dens_copy(dens_e_tot.begin(),dens_e_tot.end(),dens_e_tot_buff.begin());
-    poissonSolver(dens_e_tot_buff.begin()+nx2/p->n_dev*nx1bd,
-                  dens_e_tot_buff.end()-nx2/p->n_dev*nx1bd,
-                  pote_tot.begin());
-
+  
+    if (mpi_rank==0) {
+      thrust::copy(dens_e_tot_buff.begin()+nx2/p->n_dev*nx1bd,
+                   dens_e_tot_buff.end()-nx2/p->n_dev*nx1bd,
+                   _dens_e_tot.begin());
+      poissonSolver(_dens_e_tot.begin(),_dens_e_tot.end(),_pote_tot.begin());
+    }
     if (mpi_rank==0 && step%(p->dens_print_intv)==0) {
       dout << dens_e_tot << std::endl;
-      pout << pote_tot << std::endl;
+      pout << _pote_tot << std::endl;
     }
   }
   
   the_watch.tock();
   dout.close();
-/*
-  watch.tick("Copy from GPU to CPU...");
-  #pragma omp parallel for
-  for (int i=0; i<p->n_dev; i++) {
-    cudaSetDevice(i);
-    thrust::copy(f_e_buff[i]->begin(),f_e_buff[i]->end(),
-                 _f_electron.begin() + i*(p->n_1d_per_dev));
 
-  }
-  watch.tock();
-
-
-  watch.tick("Allocating memory for phase space on the host...");
-  thrust::host_vector<Real> _f_electron;
-  _f_electron.resize(p->n_1d_tot);
-  watch.tock();
-  std::ofstream fout("wf.qout",std::ios::out);
-  fout << _f_electron ;
-  fout.close();
-  */
 }
 
 
