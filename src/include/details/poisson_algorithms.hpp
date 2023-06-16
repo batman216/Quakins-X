@@ -3,7 +3,7 @@
 #include <cufft.h>
 #include <cusolverSp.h>
 #include <fftw3.h>
-#include <Eigen/SparseCholesky>
+#include <Eigen/SparseLU>
 
 template<typename T>
 struct cufftValTraits;
@@ -98,8 +98,6 @@ public:
      * find a cuSolver to fill 
      *
      */
-    
-
 
     cufftExecC2R(plan_inv, f2k, f2x);
 
@@ -109,27 +107,38 @@ public:
 
 
 
-
-
 template<typename idx_type, typename val_type, idx_type dim>
 class FFTandInvHost {
 
   // FFTW
-  fftwf_plan plan_fwd, plan_inv;
-  std::vector<val_type> f1x, f2x, k;
-  std::vector<std::complex<val_type>> f1k, f2k;
-  int size, fft_size, mat_size;
+  fftw_plan plan_fwd, plan_inv;
+  std::vector<double> f1x, f2x;
+  std::vector<std::complex<double>> f1k, f2k;
+  int size, fft_size, mat_size, nr, nz;
   
   // Eigen
-  Eigen::SparseMatrix<val_type> A;
-  Eigen::VectorXf b, x;
-  Eigen::SimplicialLDLT<Eigen::SparseMatrix<val_type>> solver;
+  typedef Eigen::SparseMatrix<std::complex<double>> SparseMat;
+  SparseMat A;
+  Eigen::SparseLU<SparseMat, Eigen::COLAMDOrdering<int>> solver;
   
 public:
   FFTandInvHost(std::array<idx_type,dim> n_dim,
                 std::array<val_type,2*dim> bound) {
 
-    val_type dk = 2.*M_PI/(bound[3]-bound[1]);
+    nr = static_cast<int>(n_dim[0]);
+    nz = static_cast<int>(n_dim[1]);
+    val_type rmin = bound[0], zmin = bound[1];
+    val_type rmax = bound[2], zmax = bound[3];
+
+    val_type dk = 2.*M_PI/(zmax-zmin);
+    val_type dr = (rmax-rmin)/nr;
+
+    std::vector<val_type> r,k;
+    r.reserve(nr); k.reserve(nz);
+
+    for (int i=0;i<nr;i++)      r.push_back(rmin+i*dr+.5*dr);
+    for (int i=0;i<=nz/2;i++)   k.push_back(i*dk);
+    for (int i=1+nz/2;i<nz;i++) k.push_back((i-nz)*dk);
 
    /**************************************************************************
     * parameters for advanced FFTW in/output (similar to cufftmany)
@@ -143,59 +152,77 @@ public:
     ***************************************************************************/
     
     int fft_rank = 1;
-    int n[] = {n_dim[1]};
-    int howmany = n_dim[0]; // number of transforms to compute
+    int n[] = {nz};
+    int howmany = nr; // number of transforms to compute
 
-    fft_size = n_dim[1];
-    size = 1;
-    for (int i=0; i<dim; ++i) size *= n_dim[i];
-
+    fft_size = nz;
+    size = nr*nz;
     
     f1x.resize(size);    f2x.resize(size);
     f1k.resize(size);    f2k.resize(size);
 
     // FFTW prepare
-    plan_fwd = fftwf_plan_many_dft_r2c(fft_rank, n, howmany,
+    plan_fwd = fftw_plan_many_dft_r2c(fft_rank, n, howmany,
                                       f1x.data(), n,
-                                      1, n_dim[1], 
-                                      reinterpret_cast<fftwf_complex*>(f1k.data()), n,
-                                      n_dim[0],1,
+                                      1, nz, 
+                                      reinterpret_cast<fftw_complex*>(f1k.data()), 
+                                      n, nr,1,
                                       FFTW_MEASURE);
 
-    plan_inv = fftwf_plan_many_dft_c2r(fft_rank, n, howmany,
-                                      reinterpret_cast<fftwf_complex*>(f2k.data()), n,
-                                      n_dim[0],1,
+    plan_inv = fftw_plan_many_dft_c2r(fft_rank, n, howmany,
+                                      reinterpret_cast<fftw_complex*>(f2k.data()), 
+                                      n, nr,1,
                                       f2x.data(), n,
-                                      n_dim[0],1,
+                                      nr,1,
                                       FFTW_MEASURE);
     // Eigen prepare
     mat_size = n_dim[0];
     A.resize(size,size);
-    b.resize(size);
     
     typedef typename Eigen::Triplet<val_type> Triplet;
     std::vector<Triplet> idxValList;
-    idxValList.reserve(size);
+    idxValList.reserve(size*3-2*nz);
 
-    for (int i=0; i<size; ++i)
-      idxValList.push_back(Triplet(i,i,1.));
+    val_type idr_d2 = .5/dr, idr_s2 = 1./dr/dr;
+
+    for (int I=0; I<nz; ++I) {
+      // boundary condition at r=0
+      idxValList.push_back(Triplet(I*nr,I*nr, 
+                                  k[I]*k[I]+idr_s2+idr_d2/r[0]));
+
+      for (int i=1; i<nr; ++i) {
+        int s = i + I*nr;  
+        idxValList.push_back(Triplet(s,s,
+                                     2*idr_s2 + k[I]*k[I]));
+        idxValList.push_back(Triplet(s-1,s,
+                                     -idr_d2/r[i-1]-idr_s2));
+        idxValList.push_back(Triplet(s,s-1,
+                                     idr_d2/r[i]-idr_s2));
+      }
+      // zero b.c. at r=rmax
+    }
     A.setFromTriplets(idxValList.begin(),idxValList.end());
-
+    A.makeCompressed();
+    solver.analyzePattern(A);
+    solver.factorize(A);
+    solver.compute(A);
   }
 
   template <typename itor_type>   
   void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
     std::copy(in_begin,in_end,f1x.begin());
-    fftwf_execute(plan_fwd);
+    fftw_execute(plan_fwd);
     
-    solver.compute(A);
-    Eigen::Map<Eigen::VectorXcf> b(f1k.data(),size),
+    for (int i=0; i<size; ++i) { f1k[i] /= fft_size; }
+    
+    // create a map, do not copy
+    Eigen::Map<Eigen::VectorXcd> b(f1k.data(),size),
                                  x(f2k.data(),size);
-   
-    x = solver.solve(b);
 
-    fftwf_execute(plan_inv);
+    x = solver.solve(b);
+   
+    fftw_execute(plan_inv);
     std::copy(f2x.begin(),f2x.end(),out_begin);
   }
 

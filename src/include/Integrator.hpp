@@ -38,7 +38,8 @@ struct Integrator {
     [C]__host__ __device__(Tuple _tuple){ 
       
        return static_cast<val_type>(thrust::get<1>(_tuple) 
-                    * (thrust::get<0>(_tuple)%2==0? 2.*C:4.*C)); 
+                       *(thrust::get<0>(_tuple)%2==0? 2.*C:4.*C)); 
+
     });
     
     std::size_t nn = this->n;

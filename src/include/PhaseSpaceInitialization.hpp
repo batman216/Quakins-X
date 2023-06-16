@@ -2,6 +2,7 @@
 #define _PHASE_SPACE_INITIALIZATION_HPP_
 
 #include <fstream>
+#include <cmath>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/execution_policy.h>
 #include <thrust/transform.h>
@@ -36,11 +37,15 @@ struct Idx2Value {
       idx_m[i] = (idx % imod) * n_dim[i] / imod;
 
     }
-    return   std::exp(-std::pow(low_bound[0]+h[0]*(idx_m[0]-n_bd[0])-0.1,2)/0.01)
-           * std::exp(-std::pow(low_bound[1]+h[1]*(idx_m[1]-n_bd[1])-2,2)/0.01)
-           * std::exp(-std::pow(low_bound[3]+h[3]*(idx_m[3]-n_bd[3])-5,2)/0.4)
-           * std::exp(-std::pow(low_bound[2]+h[2]*(idx_m[2]-n_bd[2])-4,2)/0.4);
-           //* (1.+std::cos(M_PI*0.1*(low_bound[2]+h[2]*(idx_m[2]-n_bd[2])))*0.2);
+    val_array z;
+    for (int i=0; i<dim; i++) 
+      z[i] = low_bound[i]+.5*h[i]+h[i]*(idx_m[i]-n_bd[i]);
+
+    return   std::exp(-std::pow(z[0]+2.5,2)/0.01)
+           * std::exp(-std::pow(z[1]-2,2)/0.01)
+           * std::exp(-std::pow(z[2]-4,2)/0.4)
+           * std::exp(-std::pow(z[3]-5,2)/0.4);
+           //* j0f(3.6825*z[2]);
  
   }
 
@@ -67,12 +72,12 @@ public:
                   itor_type itor_begin, idx_type num, idx_type id) {
 
     idx_type n_shift = id*p->n_1d_per_dev - id*2*p->n_ghost[dim-1]
-                       *p->n_1d_per_dev/p->n_tot_local[dim-1];
+                       *p->n_1d_per_dev/p->n_all_local[dim-1];
     thrust::transform(exec, 
                       thrust::make_counting_iterator(n_shift),
                       thrust::make_counting_iterator(num+n_shift), 
                       itor_begin,
-                      Idx2Value(p->n_tot,p->n_ghost, p->low_bound,p->interval));
+                      Idx2Value(p->n_all,p->n_ghost, p->low_bound,p->interval));
 
     // Idx2Value calculate the value of distribution function from 1d index,
     // once the mesh number (n), lower boundary (low_bound)  and mesh interval 

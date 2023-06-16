@@ -32,8 +32,8 @@ void Timer::tock() {
 
 void Timer::tock(MPI_Comm comm) {
 
-  this->tock();
   MPI_Barrier(comm);
+  this->tock();
 
 }
 

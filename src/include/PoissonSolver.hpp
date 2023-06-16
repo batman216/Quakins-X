@@ -7,25 +7,22 @@ namespace quakins {
 template <typename idx_type,
           typename val_type,
           idx_type dim,
-          typename Policy>
+          template<typename, typename,idx_type> typename Policy>
 class PoissonSolver {
 
-  Policy *policy;
-
-  const std::array<idx_type,dim> n_dim;
-  const std::array<val_type,2*dim> bound;
+  Policy<idx_type,val_type,dim> *policy;
 
 public:
 
   PoissonSolver(std::array<idx_type,dim> n_dim,
-                std::array<val_type,2*dim> bound)
-  : n_dim(n_dim), bound(bound) {
+                std::array<val_type,2*dim> bound) {
 
-    policy = new Policy(n_dim, bound);
+    policy = new Policy<idx_type,val_type,dim>(n_dim, bound);
 
   }
-  
-  template <typename itor_type> __host__
+  ~PoissonSolver() { delete policy; }
+
+  template <typename itor_type> 
   void operator()(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
     policy->solve(in_begin, in_end, out_begin);

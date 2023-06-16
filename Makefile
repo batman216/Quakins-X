@@ -19,8 +19,10 @@ INCFLAG = -I${NCCL_HOME}/include -I${MPI_HOME}/include \
 LIBFLAG = -L${NCCL_HOME}/lib -lnccl -L${MPI_HOME}/lib -lmpi -L${OMP_HOME}/lib -lomp \
           -L${SDK_HOME}/math_libs/${CUDA_VERSION}/targets/x86_64-linux/lib          \
 					-L${FFTW_HOME}/lib \
-          -lopen-rte -lopen-pal -lcufft -lcusolver -lfftw3f -lm
-	
+          -lopen-rte -lopen-pal -lcufft -lcusolver -lfftw3 -lm
+
+SUPPRESS = -diag-suppress 177,20011,20012,20014
+
 ifeq ($(mode),debug)
 	CXXFLAG += -g
 endif
@@ -50,10 +52,10 @@ ${BLD}/${EXE}: ${MAINO} ${CPPOBJ}
 	${CXX} $^ ${NVCFlAG} ${LIBFLAG} -o $@
 
 ${MAINO}: ${MAINCU}
-	${CXX} ${MACRO} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
+	${CXX} ${MACRO} ${CXXFLAG} ${SUPPRESS} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 ${BLD}/%.o: ${SRC}/%.cpp 
-	${CXX} ${MACRO} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
+	${CXX} ${MACRO} ${SUPPRESS} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 mpirun: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 2 ./${EXE}

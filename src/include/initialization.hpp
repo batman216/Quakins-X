@@ -22,11 +22,11 @@ struct Parameters {
   // # ghost mesh
   std::array<idx_type,dim> n_ghost;
 
-  // # total in each direction (n_tot=n1+2*n_ghost)
-  std::array<idx_type,dim> n_tot, n_tot_local;
+  // # total in each direction (n_all=n1+2*n_ghost)
+  std::array<idx_type,dim> n_all, n_all_local;
 
-  // # n_tot 
-  idx_type n_1d_tot, n_1d_per_dev;
+  // # n_all 
+  idx_type n_1d_all, n_1d_per_dev;
 
   // boundary of the phase space 
   std::array<val_type,dim> low_bound, up_bound;
@@ -92,32 +92,28 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
 
   // simulation domain size 
   std::transform(p->low_bound.begin(), p->low_bound.end(), 
-                p->up_bound.begin(), p->length.begin(),
-                [](val_type a, val_type b){ return b-a; });
+                 p->up_bound.begin(), p->length.begin(),
+                 [](val_type a, val_type b){ return b-a; });
 
-  std::transform(p->length.begin(),p->length.begin()+2,
+  std::transform(p->length.begin(),p->length.end(),
                  p->n.begin(),p->interval.begin(),
-                [](val_type a, idx_type b){ return a/(static_cast<val_type>(b)-1); });
+                 [](val_type a, idx_type b){ return a/(static_cast<val_type>(b)); });
 
-  std::transform(p->length.begin()+2,p->length.end(),
-                 p->n.begin()+2,p->interval.begin()+2,
-                [](val_type a, idx_type b){ return a/static_cast<val_type>(b); });
-
-  // n_tot = n + 2*n_nd:  total #grids = 2*#boundary grid + #real grid
-  std::transform(p->n.begin(), p->n.end(), p->n_ghost.begin(), p->n_tot.begin(),
+  // n_all = n + 2*n_nd:  total #grids = 2*#boundary grid + #real grid
+  std::transform(p->n.begin(), p->n.end(), p->n_ghost.begin(), p->n_all.begin(),
                 [](idx_type a, idx_type b){ return a+2*b; });
-  std::copy(p->n_tot.begin(),p->n_tot.end(),p->n_tot_local.begin());
-  p->n_tot_local[dim-1] /= p->n_dev;
+  std::copy(p->n_all.begin(),p->n_all.end(),p->n_all_local.begin());
+  p->n_all_local[dim-1] /= p->n_dev;
 
   // NCCL communination grid on the outermost dimension
-  p->n_tot[3] += p->n_ghost[3]*(p->n_dev-1)*2;
-  p->n_tot_local[3] = p->n_tot[3]/p->n_dev;
+  p->n_all[3] += p->n_ghost[3]*(p->n_dev-1)*2;
+  p->n_all_local[3] = p->n_all[3]/p->n_dev;
     
-  p->n_1d_tot = std::accumulate(p->n_tot.begin(),p->n_tot.end(),
+  p->n_1d_all = std::accumulate(p->n_all.begin(),p->n_all.end(),
                 static_cast<idx_type>(1),std::multiplies<idx_type>());
-  p->n_1d_per_dev = p->n_1d_tot / p->n_dev;
+  p->n_1d_per_dev = p->n_1d_all / p->n_dev;
 
-  std::size_t mem_size = p->n_1d_tot*sizeof(val_type)/1048576; 
+  std::size_t mem_size = p->n_1d_all*sizeof(val_type)/1048576; 
   cudaDeviceSetLimit(cudaLimitMallocHeapSize, mem_size/p->n_dev*2.2);
 
 
