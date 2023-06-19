@@ -264,28 +264,9 @@ int main(int argc, char* argv[]) {
     }
   }
   
-  fout.close();
-
 
   the_watch.tock();
   dout.close();
-
-  thrust::device_vector<Real> d_vec(thrust::make_counting_iterator(0),
-                                    thrust::make_counting_iterator(100));
-  
-  strided_chunk_range<thrust::device_vector<Real>::iterator>
-    test_it(d_vec.begin(),d_vec.end(),10,2);
-// thrust::copy(test_it.begin(),test_it.end(),std::ostream_iterator<int>(std::cout, " "));
-  std::cout << std::endl;
-
-  strided_chunk_range<thrust::device_vector<Real>::iterator>
-    ltest_it(d_vec.begin()+8,d_vec.end(),10,2);
-
-  thrust::copy(test_it.begin(),test_it.end(),ltest_it.begin());
-
-  thrust::copy(d_vec.begin(),d_vec.end(),std::ostream_iterator<int>(std::cout, " "));
-  std::cout << std::endl;
-
 
 
 }
