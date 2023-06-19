@@ -121,10 +121,8 @@ int main(int argc, char* argv[]) {
     quakins::details::FluxBalance> fsSolverX2(p,p->dt*.5);
 
   quakins::BoundaryCondition<Nums,ReflectingBoundary>
-    boundX1(nx1,nx1bd);
+    boundX1(nx1,nx1bd,nv1,nx1all*nx2allloc*nv2);
 
-  quakins::BoundaryCondition<Nums,PeriodicBoundaryPara>
-    boundX2(nx2,nx2bd);
 
   quakins::PoissonSolver<Nums,Real,2, FFTandInvHost> 
     poissonSolver({nx1,nx2},{x1min,x2min, x1max,x2max});
@@ -169,7 +167,6 @@ int main(int argc, char* argv[]) {
   }
 
 
-
   Nums id = mpi_rank;
   Nums l_rank = id==0? mpi_size-1 : id-1;
   Nums r_rank = id==mpi_size-1? 0 : id+1;
@@ -183,9 +180,13 @@ int main(int argc, char* argv[]) {
   Timer push_watch(mpi_rank,"push");
   Timer nccl_watch(mpi_rank,"nccl communination");
   Timer poi_watch(mpi_rank,"solver Poisson equation");
-
+  /*
+  std::ofstream fout("ftest@" +std::to_string(mpi_rank)+ ".qout",std::ios::out);
+  fout << f_e << std::endl;
+*/
   the_watch.tick("Main Loop start...");
   for (Nums step=0; step<p->time_step_total; step++) {
+
     thrust::copy(f_e.end()-2*comm_size,f_e.end()-comm_size, 
                  r_send_buff.begin());
     thrust::copy(f_e.begin()+comm_size,f_e.begin()+2*comm_size, 
@@ -206,36 +207,38 @@ int main(int argc, char* argv[]) {
     ncclGroupEnd();
 
     cudaStreamSynchronize(s);
-    nccl_watch.tock(); //=========================================================
 
-    push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //--------
     
     thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),
                  f_e.begin());
     thrust::copy(r_recv_buff.begin(),r_recv_buff.end(),
                  f_e.end()-comm_size);
+    nccl_watch.tock(); //=========================================================
       
-    copy1(f_e.begin(), f_e.end(),f_e_buff.begin());
-    //boundX2(f_e.begin(),f_e.end(),flag);
+    push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //--------
+    copy1(f_e.begin(), f_e.end(),f_e_buff.begin()); // n_now = {nx2l,nx1,nv1,nv2}
     fsSolverX2(f_e_buff.begin(),
-                 f_e_buff.end(),
-                 p->n_1d_per_dev/p->n_all_local[1],id);
-    //bufferClean(f_e_buff.begin(), f_e_buff.end(),nx2,nx2bd);
+               f_e_buff.end(),
+               p->n_1d_per_dev/p->n_all_local[1],id);
+    copy2(f_e_buff.begin(),f_e_buff.end(),f_e.begin()); // n_now = {nx1,nx2l,nv2,nv1}
 
-    copy2(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
     boundX1(f_e.begin(),f_e.end(),flag);
     fsSolverX1(f_e.begin(),
                f_e.end(),
                p->n_1d_per_dev/p->n_all_local[0],id);
-    copy3(f_e.begin(),f_e.end(),f_e_buff.begin());
+    copy3(f_e.begin(),f_e.end(),f_e_buff.begin()); // n_now = {nv1,nv2,nx1,nx2l}
+
     thrust::copy(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
+
     cudaStreamSynchronize(s);
 
     integral1(f_e.begin(),intg_buff.begin());
     integral2(intg_buff.begin(),dens_e.begin());
     
     push_watch.tock(); //==========================================================
+
     poi_watch.tick("solving poisson...");
+
     ncclGroupStart();
     if (mpi_rank==0) {
       for (int r=0; r<mpi_size; r++)
@@ -254,14 +257,36 @@ int main(int argc, char* argv[]) {
       poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
     }
     poi_watch.tock();
+
     if (mpi_rank==0 && step%(p->dens_print_intv)==0) {
       dout << _dens_e_all << std::endl;
       pout << _pote_all << std::endl;
     }
   }
   
+  fout.close();
+
+
   the_watch.tock();
   dout.close();
+
+  thrust::device_vector<Real> d_vec(thrust::make_counting_iterator(0),
+                                    thrust::make_counting_iterator(100));
+  
+  strided_chunk_range<thrust::device_vector<Real>::iterator>
+    test_it(d_vec.begin(),d_vec.end(),10,2);
+// thrust::copy(test_it.begin(),test_it.end(),std::ostream_iterator<int>(std::cout, " "));
+  std::cout << std::endl;
+
+  strided_chunk_range<thrust::device_vector<Real>::iterator>
+    ltest_it(d_vec.begin()+8,d_vec.end(),10,2);
+
+  thrust::copy(test_it.begin(),test_it.end(),ltest_it.begin());
+
+  thrust::copy(d_vec.begin(),d_vec.end(),std::ostream_iterator<int>(std::cout, " "));
+  std::cout << std::endl;
+
+
 
 }
 

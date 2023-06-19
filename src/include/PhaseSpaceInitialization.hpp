@@ -41,10 +41,12 @@ struct Idx2Value {
     for (int i=0; i<dim; i++) 
       z[i] = low_bound[i]+.5*h[i]+h[i]*(idx_m[i]-n_bd[i]);
 
-    return   std::exp(-std::pow(z[0]+2.5,2)/0.01)
-           * std::exp(-std::pow(z[1]-2,2)/0.01)
-           * std::exp(-std::pow(z[2]-4,2)/0.4)
-           * std::exp(-std::pow(z[3]-5,2)/0.4);
+    return   std::exp(-std::pow(z[0]-1.5,2)/0.02)
+           * std::exp(-std::pow(z[1]-0.5,2)/0.02)
+           * std::exp(-std::pow(z[3]-5,2)/0.4)
+           * std::exp(-std::pow(z[2]-5,2)/0.4);
+   //        * (1+0.2*std::cos(.2*M_PI*z[2]));
+ 
            //* j0f(3.6825*z[2]);
  
   }

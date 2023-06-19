@@ -40,7 +40,7 @@ class FluxBalance {
 public:
   template <typename Parameters>
   FluxBalance(Parameters *p, val_type dt) :
-  n_bd(p->n_ghost[xdim]), nx(p->n_all_local[xdim]-p->n_ghost[xdim]*2), 
+  n_bd(p->n_ghost[xdim]), nx(p->n[xdim]), 
   nv(p->n_all_local[vdim]), n_all(p->n_1d_per_dev), dx(p->interval[xdim]) {
     
     val_type dv = p->interval[vdim];
@@ -53,11 +53,10 @@ public:
          thrust::make_transform_iterator(
          thrust::make_counting_iterator(static_cast<idx_type>(0)),
          [v_min,dv,dx,dt](idx_type idx) {
-           return dt*(v_min + static_cast<val_type>(dv*idx))/dx; 
+           return dt*(v_min + dv*.5 + static_cast<val_type>(dv*idx))/dx; 
          });
 
     thrust::copy(v_itor_begin,v_itor_begin+nv,alpha.begin());
-    
   }
 
   template <typename itor_type>
@@ -65,8 +64,8 @@ public:
                idx_type n_chunk,int gpu) {
     // the outermost dimension is calculated sequentially
     std::size_t n_step = n_all/n_chunk; 
-
     thrust::device_vector<val_type> flux(n_chunk);
+    
 
     val_type a, shift_f;
     int shift;
