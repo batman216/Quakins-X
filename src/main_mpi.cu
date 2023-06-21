@@ -19,6 +19,7 @@
 #include "include/PoissonSolver.hpp"
 #include "include/util.hpp"
 #include "include/ParallelCommunicator.hpp"
+#include "include/InsertGhost.hpp"
 
 
 using Nums = std::size_t;
@@ -49,11 +50,11 @@ int main(int argc, char* argv[]) {
 
   Nums nx1=p->n[2], nx2=p->n[3], nx2loc=nx2/p->n_dev;
   Nums nx1bd=p->n_ghost[2], nx2bd=p->n_ghost[3];
-  Nums nx1all=p->n_all[2], nx2allloc=p->n_all_local[3];
+  Nums nx1tot=p->n_all[2], nx2allloc=p->n_all_local[3];
   Nums nv1=p->n[0], nv2=p->n[1];
-  Nums nxall = nx1all*nx2allloc;
-  Nums comm_size = p->n_ghost[3]*nx1all*nv1*nv2;
-  Nums dens_size = nx1all*nx2/p->n_dev;
+  Nums nxall = nx1tot*nx2allloc;
+  Nums comm_size = p->n_ghost[3]*nx1tot*nv1*nv2;
+  Nums dens_size = nx1tot*nx2/p->n_dev;
   
   Real v1min=p->low_bound[0], v1max=p->up_bound[0];
   Real v2min=p->low_bound[1], v2max=p->up_bound[1];
@@ -66,7 +67,7 @@ int main(int argc, char* argv[]) {
   quakins::PhaseSpaceParallelCommute<Nums,Real>
     psCommute(comm_size, &q_comm);
   quakins::DensityGather<Nums,Real>
-    densGather(nx1all*nv2, &q_comm);
+    densGather(nx1tot*nv2, &q_comm);
   quakins::PotentialBroadcast<Nums,Real>
     potBcast(nx1*nx2,&q_comm);
 
@@ -79,7 +80,8 @@ int main(int argc, char* argv[]) {
 
 
   thrust::device_vector<Real> 
-    dens_e_all(nx1all*nx2), dens_e_all_buff(nx1all*nx2), pote_all(nx1*nx2);
+    dens_e_all(nx1tot*nx2), dens_e_all_buff(nx1tot*nx2), pote_all(nx1*nx2),
+    pote_all_tot(nx1tot*nx2);
   thrust::host_vector<Real> _dens_e_all(nx1*nx2), _pote_all(nx1*nx2);
 
   std::array<Nums,4> order1 = {3,2,0,1},
@@ -98,7 +100,7 @@ int main(int argc, char* argv[]) {
   thrust::gather(order3.begin(),order3.end(),
                  n_now_3.begin(), n_now_4.begin());
 
-  quakins::ReorderCopy<Nums,Real,dim/2> dens_copy({nx1all,nx2},{1,0});
+  quakins::ReorderCopy<Nums,Real,dim/2> dens_copy({nx1tot,nx2},{1,0});
 
   quakins::FreeStream<Nums,Real,dim,2,0,
     quakins::details::FluxBalanceCoordSpace> fsSolverX1(p,p->dt*.5);
@@ -108,7 +110,7 @@ int main(int argc, char* argv[]) {
     quakins::details::WignerTerm> wignerSolver(p,p->dt);
  
   quakins::BoundaryCondition<Nums,ReflectingBoundary>
-    boundX1(nx1,nx1bd,nv1,nx1all*nx2allloc*nv2);
+    boundX1(nx1,nx1bd,nv1,nx1tot*nx2allloc*nv2);
 
 
   quakins::PoissonSolver<Nums,Real,2, FFTandInvHost> 
@@ -132,18 +134,17 @@ int main(int argc, char* argv[]) {
   std::ofstream pout("potential@"+std::to_string(mpi_rank)+".qout",std::ios::out);
   
 
-  densGather(dens_e_all.begin(), dens_e.begin()+nx1all*nx2bd);
+  densGather(dens_e_all.begin(), dens_e.begin()+nx1tot*nx2bd);
 
-  if (mpi_rank==0) {
-    dens_copy(dens_e_all.begin(),dens_e_all.end(),dens_e_all_buff.begin());
-    thrust::copy(dens_e_all_buff.begin()+nx2*nx1bd,
-                 dens_e_all_buff.end()-nx2*nx1bd,
-                 _dens_e_all.begin());
-    poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
-    dout << _dens_e_all << std::endl;
-    pout << _pote_all << std::endl;
+
+  dens_copy(dens_e_all.begin(),dens_e_all.end(),dens_e_all_buff.begin());
+  thrust::copy(dens_e_all_buff.begin()+nx2*nx1bd,
+               dens_e_all_buff.end()-nx2*nx1bd,
+               _dens_e_all.begin());
+  poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
+  dout << _dens_e_all << std::endl;
+  pout << _pote_all << std::endl;
  
-  }
 
 
   Nums id = mpi_rank;
@@ -188,7 +189,7 @@ int main(int argc, char* argv[]) {
     integral1(f_e.begin(),intg_buff.begin());
     integral2(intg_buff.begin(),dens_e.begin());
     
-    densGather(dens_e_all.begin(), dens_e.begin()+nx1all*nx2bd);
+    densGather(dens_e_all.begin(), dens_e.begin()+nx1tot*nx2bd);
 
     if (mpi_rank==0) {
       dens_copy(dens_e_all.begin(),dens_e_all.end(),dens_e_all_buff.begin());
@@ -199,11 +200,14 @@ int main(int argc, char* argv[]) {
       thrust::copy(_pote_all.begin(),_pote_all.end(),pote_all.begin());    
     }
     potBcast(pote_all.begin());
+
+    quakins::insertGhost(pote_all.begin(),nx1,nx1bd,pote_all_tot.begin(),nx2);
+    
     poi_watch.tock();  //========================================================
 
     if (step%(p->dens_print_intv)==0) {
       dout << _dens_e_all << std::endl;
-      pout << _pote_all << std::endl;
+      pout << pote_all_tot << std::endl;
     }
     // velocity direction push  
     
