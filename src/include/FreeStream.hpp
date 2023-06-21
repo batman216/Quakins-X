@@ -1,5 +1,10 @@
 #pragma once
 
+#include "details/FluxBalanceCoordSpace.hpp"
+#include "details/FluxBalanceVeloSpace.hpp"
+#include "details/FourierSpectrum.hpp"
+#include "details/WignerTerm.hpp"
+
 template <typename idx_type, typename val_type, idx_type dim>
 struct Parameters;
 
@@ -24,11 +29,11 @@ public:
     
   }
 
-  template <typename itor_type>
+  template <typename itor_type, typename vitor_type>
   void operator()(itor_type itor_begin, itor_type itor_end, 
-                idx_type n_chunk,int gpu) {
+                  vitor_type v_begin, int gpu) {
     
-    policy->advance(itor_begin, itor_end, n_chunk, gpu);
+    policy->advance(itor_begin, itor_end, v_begin, gpu);
   }
 
 };

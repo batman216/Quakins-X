@@ -9,21 +9,27 @@
 #include <thrust/reduce.h>
 #include <thrust/scatter.h>
 
+#include "details/initial_shapes.hpp"
+
 template <typename idx_type, 
           typename val_type, 
-          idx_type dim>
+          idx_type dim, typename ShapeFunctor>
 struct Idx2Value {
+
+  typedef Parameters<idx_type,val_type,dim> Parameters;
 
   typedef std::array<idx_type,dim> idx_array;
   typedef std::array<val_type,dim> val_array;
 
   idx_array n_dim, n_bd;
   val_array low_bound, h;
+  
+  ShapeFunctor *shape;
 
   __host__ __device__ 
-  Idx2Value(idx_array n_dim, idx_array n_bd, val_array lb, val_array h)
-   : n_dim(n_dim),low_bound(lb),h(h), n_bd(n_bd) {
-  }
+  Idx2Value(idx_array n_dim, idx_array n_bd, 
+            val_array lb, val_array h, ShapeFunctor *shape)
+   : n_dim(n_dim),low_bound(lb),h(h), n_bd(n_bd), shape(shape) {}
 
   __host__ __device__ 
   val_type operator()(const idx_type& idx) {
@@ -41,17 +47,12 @@ struct Idx2Value {
     for (int i=0; i<dim; i++) 
       z[i] = low_bound[i]+.5*h[i]+h[i]*(idx_m[i]-n_bd[i]);
 
-    return   std::exp(-std::pow(z[0]-1.5,2)/0.02)
-           * std::exp(-std::pow(z[1]-0.5,2)/0.02)
-           * std::exp(-std::pow(z[3]-5,2)/0.4)
-           * std::exp(-std::pow(z[2]-5,2)/0.4);
-   //        * (1+0.2*std::cos(.2*M_PI*z[2]));
- 
-           //* j0f(3.6825*z[2]);
- 
+    return shape->write(z);  
+
   }
 
 };
+
 
 
 namespace quakins {
@@ -59,14 +60,21 @@ namespace quakins {
 
 template <typename idx_type, 
           typename val_type, 
-          idx_type dim>
+          idx_type dim, 
+          template<typename W,typename,W,typename> typename ShapeFunctorTemplate>
 class PhaseSpaceInitialization {
 
-  Parameters<idx_type,val_type,dim> *p;
+  typedef Parameters<idx_type,val_type,dim> Parameters;
+  typedef ShapeFunctorTemplate<idx_type,val_type,dim,Parameters> ShapeFunctor;
+
+  Parameters *p;
+  ShapeFunctor *shape;
 
 public:
-  PhaseSpaceInitialization(Parameters<idx_type,val_type,dim>* p) 
-  : p(p) {}
+  PhaseSpaceInitialization(Parameters* p) 
+  : p(p) {
+    shape = new ShapeFunctor(p);
+  }
 
   template <typename itor_type, typename ExecutionPolicy>
   __host__ 
@@ -79,8 +87,9 @@ public:
                       thrust::make_counting_iterator(n_shift),
                       thrust::make_counting_iterator(num+n_shift), 
                       itor_begin,
-                      Idx2Value(p->n_all,p->n_ghost, p->low_bound,p->interval));
-
+                      Idx2Value(p->n_all,p->n_ghost, p->low_bound,p->interval, shape));
+    // the template parameters are automatically deduced via the constructor
+    
     // Idx2Value calculate the value of distribution function from 1d index,
     // once the mesh number (n), lower boundary (low_bound)  and mesh interval 
     // of each dimension are given.

@@ -31,10 +31,12 @@ template <typename t_Product> class Proxy;
 template <typename t_Product, typename t_ConcreteProduct> 
 class ConcreteFactory : public Factory<t_Product> {
 public:
+
   explicit ConcreteFactory(std::string p_name) {
     Proxy<t_Product>::Instance().registerProduct(this,p_name);
   }
-  t_Product *produce() { return new t_ConcreteProduct; }
+
+  t_Product* produce() { return new t_ConcreteProduct; }
 
 };
 
@@ -60,7 +62,6 @@ public:
   void registerProduct(Factory<t_Product>* reg, std::string p_name) {
     regedit[p_name] = std::move(reg);
   }
-
   t_Product* get(std::string p_name) { /// flyweight singleton
     if (regedit.find(p_name) != regedit.end())
       return regedit[p_name]->produce();

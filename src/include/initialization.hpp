@@ -43,6 +43,9 @@ struct Parameters {
 
 
   idx_type dens_print_intv;
+
+
+  std::string dens_profile_str = "GaussShape";
 };
 
 namespace quakins {
