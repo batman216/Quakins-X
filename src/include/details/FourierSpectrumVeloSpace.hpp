@@ -47,14 +47,13 @@ public:
       }
     }
     
-    int nv[2] = {nv1, nv2}; 
-    cufftPlanMany(&plan_fwd, 2, nv, NULL, 1, nv1*nv2,
-                                    NULL, 1, nv1*nv2,
-                                    CUFFT_R2C, nx1*nx2loc);
-
-    cufftPlanMany(&plan_bwd, 2, nv, NULL, 1, nv1*nv2,
-                                    NULL, 1, nv1*nv2,
-                                    CUFFT_C2R, nx1*nx2loc);
+    int nv[2] = {static_cast<int>(nv1), static_cast<int>(nv2)}; 
+    cufftPlanMany(&plan_fwd, 2, nv, NULL, 1, static_cast<int>(nv1*nv2),
+                                    NULL, 1, static_cast<int>(nv1*nv2),
+                                    CUFFT_R2C, static_cast<int>(nx1*nx2loc));
+    cufftPlanMany(&plan_bwd, 2, nv, NULL, 1, static_cast<int>(nv1*nv2),
+                                    NULL, 1, static_cast<int>(nv1*nv2),
+                                    CUFFT_C2R, static_cast<int>(nx1*nx2loc));
   }
 
   template <typename itor_type, typename vitor_type>
@@ -73,7 +72,7 @@ public:
     
     thrust::for_each(thrust::device,
                      c_pointer,c_pointer+n_tot,[norm]
-                     __host__ __device__(cufftComplex& val)
+                     __host__ __device__ (cufftComplex& val)
                      { val.x/=norm; val.y/=norm; });
 
 

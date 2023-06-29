@@ -156,7 +156,8 @@ int main(int argc, char* argv[]) {
   else flag='m';
   
   Timer the_watch(mpi_rank,"This run");
-  Timer push_watch(mpi_rank,"push");
+  Timer push_watch(mpi_rank,"coord space advance");
+  Timer v_push_watch(mpi_rank,"velocity space advance");
   Timer nccl_watch(mpi_rank,"nccl communination");
   Timer poi_watch(mpi_rank,"solver Poisson equation");
   /*
@@ -212,9 +213,9 @@ int main(int argc, char* argv[]) {
       pout << _pote_all << std::endl;
     }
     // velocity direction push  
-    
+    v_push_watch.tick("velocity space advance...");
     vSolver(f_e.begin(), f_e.end(),pote_all.begin(),id);
-
+    v_push_watch.tock();
   }
 
   the_watch.tock();
