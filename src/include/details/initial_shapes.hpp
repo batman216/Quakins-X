@@ -1,5 +1,8 @@
 #pragma once 
 
+#include <concepts>
+#include <tuple>
+
 
 
 
@@ -13,6 +16,7 @@ struct ShapeFunctor {
 
   __host__ __device__
   val_type write(const val_array& z) {
+
     return std::exp(-std::pow(z[0]-1.5,2)/0.02)
            * std::exp(-std::pow(z[1]-0.5,2)/0.02)
            * std::exp(-std::pow(z[3]-5,2)/0.4)

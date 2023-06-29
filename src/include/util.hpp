@@ -191,3 +191,6 @@ std::ostream& operator<<(std::ostream& os, const thrust::device_vector<T>& obj) 
 // for one device per thread operation
 uint64_t getHostHash(const char *);
 void getHostName(char *, int);
+
+
+

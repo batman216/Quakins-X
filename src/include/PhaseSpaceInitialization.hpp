@@ -53,8 +53,6 @@ struct Idx2Value {
 
 };
 
-
-
 namespace quakins {
 
 

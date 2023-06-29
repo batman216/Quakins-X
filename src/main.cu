@@ -234,8 +234,9 @@ int main(int argc, char* argv[]) {
 
    
 
-    if (step%(p->dens_print_intv)==0)
+    if (step%(p->dens_print_intv)==0) {
       dout << _dens_e << std::endl;
+    }
   }
   watch.tock(); //============================================================
 

@@ -207,7 +207,7 @@ int main(int argc, char* argv[]) {
 
     if (step%(p->dens_print_intv)==0) {
       dout << _dens_e_all << std::endl;
-      pout << pote_all_tot << std::endl;
+      pout << _pote_all << std::endl;
     }
     // velocity direction push  
     
