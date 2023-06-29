@@ -17,7 +17,7 @@ struct Parameters {
   val_type dt;
 
   // # mesh grid
-  std::array<idx_type,dim> n;
+  std::array<idx_type,dim> n, n_local;
 
   // # ghost mesh
   std::array<idx_type,dim> n_ghost;

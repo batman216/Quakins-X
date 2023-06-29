@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
   quakins::PhaseSpaceParallelCommute<Nums,Real>
     psCommute(comm_size, &q_comm);
   quakins::DensityGather<Nums,Real>
-    densGather(nx1tot*nv2, &q_comm);
+    densGather(nx1tot*nx2loc, &q_comm);
   quakins::PotentialBroadcast<Nums,Real>
     potBcast(nx1*nx2,&q_comm);
 
@@ -108,7 +108,10 @@ int main(int argc, char* argv[]) {
     quakins::details::FluxBalanceCoordSpace> fsSolverX2(p,p->dt*.5);
   quakins::FreeStream<Nums,Real,dim,2,0,
     quakins::details::WignerTerm> wignerSolver(p,p->dt);
+  quakins::FreeStream<Nums,Real,dim,4,0,
+    quakins::details::FourierSpectrumVeloSpace> vSolver(p,p->dt);
  
+
   quakins::BoundaryCondition<Nums,ReflectingBoundary>
     boundX1(nx1,nx1bd,nv1,nx1tot*nx2allloc*nv2);
 
@@ -142,8 +145,6 @@ int main(int argc, char* argv[]) {
                dens_e_all_buff.end()-nx2*nx1bd,
                _dens_e_all.begin());
   poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
-  dout << _dens_e_all << std::endl;
-  pout << _pote_all << std::endl;
  
 
 
@@ -194,14 +195,15 @@ int main(int argc, char* argv[]) {
     if (mpi_rank==0) {
       dens_copy(dens_e_all.begin(),dens_e_all.end(),dens_e_all_buff.begin());
       thrust::copy(dens_e_all_buff.begin()+nx2*nx1bd,
-                   dens_e_all_buff.end()-nx2*nx1bd,
-                   _dens_e_all.begin());
+                   dens_e_all_buff.end()-nx2*nx1bd, _dens_e_all.begin());
+
       poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
+
       thrust::copy(_pote_all.begin(),_pote_all.end(),pote_all.begin());    
     }
-    potBcast(pote_all.begin());
+    //potBcast(pote_all.begin());
 
-    quakins::insertGhost(pote_all.begin(),nx1,nx1bd,pote_all_tot.begin(),nx2);
+    //  quakins::insertGhost(pote_all.begin(),nx1,nx1bd,pote_all_tot.begin(),nx2);
     
     poi_watch.tock();  //========================================================
 
@@ -211,7 +213,7 @@ int main(int argc, char* argv[]) {
     }
     // velocity direction push  
     
-
+    vSolver(f_e.begin(), f_e.end(),pote_all.begin(),id);
 
   }
 

@@ -3,6 +3,7 @@
 #include "details/FluxBalanceCoordSpace.hpp"
 #include "details/FluxBalanceVeloSpace.hpp"
 #include "details/FourierSpectrum.hpp"
+#include "details/FourierSpectrumVeloSpace.hpp"
 #include "details/WignerTerm.hpp"
 
 template <typename idx_type, typename val_type, idx_type dim>
