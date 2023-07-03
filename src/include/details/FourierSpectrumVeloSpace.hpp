@@ -47,13 +47,24 @@ public:
       }
     }
     
-    int nv[2] = {static_cast<int>(nv1), static_cast<int>(nv2)}; 
-    cufftPlanMany(&plan_fwd, 2, nv, NULL, 1, static_cast<int>(nv1*nv2),
-                                    NULL, 1, static_cast<int>(nv1*nv2),
+    int nv[2] = {static_cast<int>(nv2), static_cast<int>(nv1)}; 
+    int dist = static_cast<int>(nv2*nv1);
+
+    //                              nembed, stride, dist
+    cufftPlanMany(&plan_fwd, 2, nv, NULL,   1,      dist,
+                                    NULL,   1,      dist,
                                     CUFFT_R2C, static_cast<int>(nx1*nx2loc));
-    cufftPlanMany(&plan_bwd, 2, nv, NULL, 1, static_cast<int>(nv1*nv2),
-                                    NULL, 1, static_cast<int>(nv1*nv2),
+    cufftPlanMany(&plan_bwd, 2, nv, NULL,   1,      dist,
+                                    NULL,   1,      dist,
                                     CUFFT_C2R, static_cast<int>(nx1*nx2loc));
+/*
+    cufftPlanMany(&plan_fwd, 2, nv, NULL,    1,      ndistr,
+                                    NULL,    1,      ndistc,
+                                    CUFFT_R2C, static_cast<int>(nx1*nx2loc));
+    cufftPlanMany(&plan_bwd, 2, nv, NULL, 1, ndistc,
+                                    NULL, 1, ndistr,
+                                    CUFFT_C2R, static_cast<int>(nx1*nx2loc));
+                                    */
   }
 
   template <typename itor_type, typename vitor_type>
@@ -69,15 +80,16 @@ public:
                            (cufftComplex *) main_pointer);
     
     idx_type norm = nv1*nv2, n_tot = nv1*nv2*nx1*nx2loc;
-    
+
+    /*
     thrust::for_each(thrust::device,
                      c_pointer,c_pointer+n_tot,[norm]
                      __host__ __device__ (cufftComplex& val)
                      { val.x/=norm; val.y/=norm; });
+    */
 
-
-    cufftExecC2R(plan_bwd, (cufftComplex *) main_pointer,
-                           (cufftReal *) main_pointer);
+    cufftExecC2R(plan_bwd, (cufftComplex*) main_pointer,
+                           (cufftReal*) main_pointer);
 
   }
 

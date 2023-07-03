@@ -4,16 +4,16 @@
 
 @ time --------------------------------*
 
-step_total      = 100
+step_total      = 2
 dt              = 0.08
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1             =  100
-nx2             =  200
-nv1             =  150
+nx1             =  150
+nx2             =  450
+nv1             =  160
 nv2             =  150
 
 nx1_ghost       =  6
@@ -54,7 +54,13 @@ Theta           =  0.1
 
 @ diagnosis ---------------------------*
 
-dens_print_intv =  10
+dens_print_intv =  1
+
+system_ctrl_1   =  cd
+ctrl_1_intv     =  10
+
+system_ctrl_2   =  cd
+ctrl_2_intv     =  10
 
 @ diagnosis ---------------------------*
 
