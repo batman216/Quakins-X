@@ -212,9 +212,10 @@ int main(int argc, char* argv[]) {
       dout << _dens_e_all << std::endl;
       pout << _pote_all << std::endl;
     }
+    cudaStreamSynchronize(q_comm.s);
     // velocity direction push  
     v_push_watch.tick("velocity space advance...");
-    vSolver(f_e.begin(), f_e.end(),pote_all.begin(),id);
+    vSolver(f_e.begin(), f_e.end(), pote_all.begin(),id);
     v_push_watch.tock();
   }
 

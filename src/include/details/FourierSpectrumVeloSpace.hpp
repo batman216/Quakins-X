@@ -97,4 +97,5 @@ public:
 
 
 } // namespace details
+  
 } // namespace quakins
