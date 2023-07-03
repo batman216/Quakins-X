@@ -173,13 +173,13 @@ int main(int argc, char* argv[]) {
       
     push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //--------
     copy1(f_e.begin(), f_e.end(),f_e_buff.begin()); // n_now = {nx2l,nx1,nv1,nv2}
-    //fsSolverX2(f_e_buff.begin(), f_e_buff.end(),
-    //          thrust::make_discard_iterator(), id);
+    fsSolverX2(f_e_buff.begin(), f_e_buff.end(),
+              thrust::make_discard_iterator(), id);
     copy2(f_e_buff.begin(),f_e_buff.end(),f_e.begin()); // n_now = {nx1,nx2l,nv2,nv1}
 
     boundX1(f_e.begin(),f_e.end(),flag);
-    //fsSolverX1(f_e.begin(), f_e.end(), 
-     //          thrust::make_discard_iterator(), id);
+    fsSolverX1(f_e.begin(), f_e.end(), 
+              thrust::make_discard_iterator(), id);
     copy3(f_e.begin(),f_e.end(),f_e_buff.begin()); // n_now = {nv1,nv2,nx1,nx2l}
 
     thrust::copy(f_e_buff.begin(),f_e_buff.end(),f_e.begin());

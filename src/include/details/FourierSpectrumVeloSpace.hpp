@@ -81,12 +81,12 @@ public:
     
     idx_type norm = nv1*nv2, n_tot = nv1*nv2*nx1*nx2loc;
 
-    /*
+    
     thrust::for_each(thrust::device,
                      c_pointer,c_pointer+n_tot,[norm]
                      __host__ __device__ (cufftComplex& val)
                      { val.x/=norm; val.y/=norm; });
-    */
+    
 
     cufftExecC2R(plan_bwd, (cufftComplex*) main_pointer,
                            (cufftReal*) main_pointer);
