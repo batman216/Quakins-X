@@ -4,7 +4,7 @@
 
 @ time --------------------------------*
 
-step_total      = 20
+step_total      = 100
 dt              = 0.08
 
 @ time --------------------------------*
@@ -13,8 +13,8 @@ dt              = 0.08
 
 nx1             =  120
 nx2             =  300
-nv1             =  120
-nv2             =  120
+nv1             =  140
+nv2             =  180
 
 nx1_ghost       =  6
 nx2_ghost       =  6
@@ -54,7 +54,7 @@ Theta           =  0.1
 
 @ diagnosis ---------------------------*
 
-dens_print_intv =  1
+dens_print_intv =  5
 
 system_ctrl_1   =  cd
 ctrl_1_intv     =  10

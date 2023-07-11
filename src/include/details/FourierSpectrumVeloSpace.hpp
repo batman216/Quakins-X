@@ -40,23 +40,18 @@ public:
     Ex.resize(nx1*nx2);     Ey.resize(nx1*nx2);
     lam1.resize(nv1*nv2/2); lam2.resize(nv1*nv2/2);
 
-    for (int j=0; j<nv2/2; j++) {
+    for (int j=0; j<=nv2/2; j++) {
       for (int i=0; i<nv1/2; i++) {
         lam1[j*nv1/2+i] = i*dl1;
         lam2[j*nv1/2+i] = j*dl2;
       }
     }
-    for (int j=nv2/2; j<nv2; j++) {
+    for (int j=nv2/2+1; j<nv2; j++) {
       for (int i=0; i<nv1/2; i++) {
         lam1[j*nv1/2+i] = i*dl1;
         lam2[j*nv1/2+i] = (j-static_cast<int>(nv2))*dl2;
       }
     }
-    std::ofstream tout("lambda",std::ios::out);
-    thrust::copy(lam1.begin(),lam1.end(),std::ostream_iterator<val_type>(tout," "));
-    tout << std::endl;
-    thrust::copy(lam2.begin(),lam2.end(),std::ostream_iterator<val_type>(tout," "));
-    tout << std::endl;
   }
   template <typename itor_type, typename vitor_type>
   __host__ __device__
@@ -72,12 +67,12 @@ public:
       thrust::transform(thrust::device,
                         comp_ptr + i*nv1*nv2/2,
                         comp_ptr + (i+1)*nv1*nv2/2,
-                        lam1.begin(),
+                        lam2.begin(),
                         comp_ptr + i*nv1*nv2/2,
                         [time_step]__host__ __device__
                         (cufftComplex val, const val_type& lam) {
                           cufftComplex next_val;
-                          val_type phase = -1*time_step*lam;
+                          val_type phase = .2*time_step*lam;
                           next_val.x =  val.x*cos(phase) - val.y*sin(phase);
                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
                           return next_val;

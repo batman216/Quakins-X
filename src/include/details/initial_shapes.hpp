@@ -17,11 +17,11 @@ struct ShapeFunctor {
   __host__ __device__
   val_type write(const val_array& z) {
 
-    return std::exp(-std::pow(z[0],2)/1)
-           * std::exp(-std::pow(z[1]-1,2)/1)
+    return   std::exp(-std::pow(z[0],2)/.05)
+           * std::exp(-std::pow(z[1]-1,2)/.05)
            * std::exp(-std::pow(z[3]-5,2)/0.4)
            * std::exp(-std::pow(z[2]-5,2)/0.4);
-   //        * (1+0.2*std::cos(.2*M_PI*z[2]));
+           //* (1+0.2*std::cos(2*M_PI*z[1]/12));
            //* j0f(3.6825*z[2]);
 
   }

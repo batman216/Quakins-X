@@ -15,28 +15,28 @@ class FFT {
 public:
   FFT(idx_array n, idx_type n_batch) {
 
-    int nr[2] = {static_cast<int>(n[1]), static_cast<int>(n[0]-2)}; 
     int nv[2] = {static_cast<int>(n[1]), static_cast<int>(n[0]-2)}; 
-    int nc[2] = {static_cast<int>(n[1]), static_cast<int>(n[0]/2)}; 
+    int rnembed[2] = {static_cast<int>(n[1]), static_cast<int>(n[0])}; 
+    int cnembed[2] = {static_cast<int>(n[1]), static_cast<int>(n[0]/2)}; 
  
-    int dist = static_cast<int>(n[0]*n[1]);
-    int hdist = static_cast<int>(n[0]*n[1]/2);
+    int rdist = static_cast<int>(n[0]*n[1]);
+    int cdist = static_cast<int>(n[0]*n[1]/2);
 
-    cufftPlanMany(&plan_fwd, fft_rank, nv, nr, 1, dist,
-                                       nc, 1, hdist,
-                                       CUFFT_R2C, 
-                                       n_batch);
-    cufftPlanMany(&plan_bwd, fft_rank, nv, nc, 1, hdist,
-                                       nr, 1, dist,
-                                       CUFFT_C2R, 
-                                       n_batch);
+    cufftPlanMany(&plan_fwd, fft_rank, nv, rnembed, 1, rdist,
+                                           cnembed, 1, cdist,
+                                           CUFFT_R2C, n_batch);
+    cufftPlanMany(&plan_bwd, fft_rank, nv, cnembed, 1, cdist,
+                                           rnembed, 1, rdist,
+                                           CUFFT_C2R, n_batch);
+
     norm = static_cast<val_type>((n[0]-2)*n[1]);
 
   }
+
   template <typename itor_type>
   void forward(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
-    auto n_tot = in_end-in_begin;
+    auto n_tot = in_end - in_begin;
     auto real_ptr = reinterpret_cast<cufftReal*>(
                         thrust::raw_pointer_cast(&(*in_begin)));
     auto comp_ptr = reinterpret_cast<cufftComplex*>(
@@ -50,6 +50,7 @@ public:
                      (cufftComplex& val) { val.x/=Norm; val.y/=Norm; });
 
   }
+
   template <typename itor_type>
   void backward(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
