@@ -58,7 +58,6 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
 
   auto t_map = read_box(input_file, "time");
   
-
   int temp; // todo: this is not very elegant.
   cudaGetDeviceCount(&temp);
   p->n_dev = static_cast<idx_type>(temp);

@@ -20,6 +20,8 @@
 #include "include/util.hpp"
 #include "include/ParallelCommunicator.hpp"
 #include "include/InsertGhost.hpp"
+#include "include/fftOutPlace.hpp"
+#include "include/Slice.hpp"
 
 
 using Nums = std::size_t;
@@ -164,6 +166,10 @@ int main(int argc, char* argv[]) {
   std::ofstream fout("ftest@" +std::to_string(mpi_rank)+ ".qout",std::ios::out);
   fout << f_e << std::endl;
 */
+  quakins::Slicer<Nums,Real,4,1,3> slice1(p->n_all_local,id,"slice_x2v2");
+  quakins::Slicer<Nums,Real,4,0,1> slice2(p->n_all_local,id,"slice_v2v2");
+  quakins::FFT<Nums,Real,2> fft(std::array<Nums,2>{nv1,nv2},nx1tot*nx2allloc);
+
   the_watch.tick("Main Loop start...");
   for (Nums step=0; step<p->time_step_total; step++) {
 
@@ -173,13 +179,11 @@ int main(int argc, char* argv[]) {
       
     push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //--------
     copy1(f_e.begin(), f_e.end(),f_e_buff.begin()); // n_now = {nx2l,nx1,nv1,nv2}
-    fsSolverX2(f_e_buff.begin(), f_e_buff.end(),
-              thrust::make_discard_iterator(), id);
+    //fsSolverX2(f_e_buff.begin(), f_e_buff.end(),thrust::make_discard_iterator(), id);
     copy2(f_e_buff.begin(),f_e_buff.end(),f_e.begin()); // n_now = {nx1,nx2l,nv2,nv1}
 
     boundX1(f_e.begin(),f_e.end(),flag);
-    fsSolverX1(f_e.begin(), f_e.end(), 
-              thrust::make_discard_iterator(), id);
+    //fsSolverX1(f_e.begin(), f_e.end(), thrust::make_discard_iterator(), id);
     copy3(f_e.begin(),f_e.end(),f_e_buff.begin()); // n_now = {nv1,nv2,nx1,nx2l}
 
     thrust::copy(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
@@ -211,11 +215,17 @@ int main(int argc, char* argv[]) {
     if (step%(p->dens_print_intv)==0) {
       dout << _dens_e_all << std::endl;
       pout << _pote_all << std::endl;
+      slice1({60,0,60,0},f_e.begin());
+      slice2({0,0,60,50},f_e.begin());
     }
     cudaStreamSynchronize(q_comm.s);
     // velocity direction push  
     v_push_watch.tick("velocity space advance...");
-    vSolver(f_e.begin(), f_e.end(), pote_all.begin(),id);
+
+    fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
+    vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+    fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
+
     v_push_watch.tock();
   }
 
