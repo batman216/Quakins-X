@@ -206,27 +206,20 @@ int main(int argc, char* argv[]) {
 
       thrust::copy(_pote_all.begin(),_pote_all.end(),pote_all.begin());    
     }
-    //potBcast(pote_all.begin());
-
-    //  quakins::insertGhost(pote_all.begin(),nx1,nx1bd,pote_all_tot.begin(),nx2);
-    
-    poi_watch.tock();  //========================================================
+    potBcast(pote_all.begin());
 
     if (step%(p->dens_print_intv)==0) {
       dout << _dens_e_all << std::endl;
-      pout << _pote_all << std::endl;
-      slice1({60,0,60,0},f_e.begin());
-      slice2({0,0,60,50},f_e.begin());
+      pout << pote_all << std::endl;
+    //  slice1({60,0,60,0},f_e.begin());
+     // slice2({0,0,60,50},f_e.begin());
     }
-    cudaStreamSynchronize(q_comm.s);
     // velocity direction push  
-    v_push_watch.tick("velocity space advance...");
 
     fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
     vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
     fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
 
-    v_push_watch.tock();
   }
 
   the_watch.tock();

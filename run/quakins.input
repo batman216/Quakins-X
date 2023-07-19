@@ -13,8 +13,8 @@ dt              = 0.08
 
 nx1             =  120
 nx2             =  300
-nv1             =  140
-nv2             =  180
+nv1             =  220
+nv2             =  220
 
 nx1_ghost       =  6
 nx2_ghost       =  6
