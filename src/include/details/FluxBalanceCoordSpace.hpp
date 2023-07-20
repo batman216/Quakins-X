@@ -61,6 +61,7 @@ public:
          });
 
     thrust::copy(v_itor_begin,v_itor_begin+nv,alpha.begin());
+    thrust::copy(alpha.begin(),alpha.end(),std::ostream_iterator<val_type>(std::cout," "));
   }
 
   template <typename itor_type, typename vitor_type>

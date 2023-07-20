@@ -4,17 +4,17 @@
 
 @ time --------------------------------*
 
-step_total      = 100
-dt              = 0.08
+step_total      = 200
+dt              = 0.04
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1             =  120
-nx2             =  300
-nv1             =  220
-nv2             =  220
+nx1             =  225
+nx2             =  150
+nv1             =  180
+nv2             =  180
 
 nx1_ghost       =  6
 nx2_ghost       =  6
@@ -22,9 +22,9 @@ nv1_ghost       =  0
 nv2_ghost       =  0
 
 x1min           =  0
-x1max           =  10
+x1max           =  15
 x2min           =  0
-x2max           =  30
+x2max           =  10
 v1min           = -6
 v1max           =  6
 v2min           = -6

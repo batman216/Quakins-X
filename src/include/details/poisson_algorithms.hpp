@@ -212,6 +212,12 @@ public:
   void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
     std::copy(in_begin,in_end,f1x.begin());
+    
+
+    // substract ion
+    std::for_each(f1x.begin(),f1x.end(),
+                  [](auto& val) { val-=1.0; });
+
     fftw_execute(plan_fwd);
     
     for (int i=0; i<size; ++i) { f1k[i] /= fft_size; }

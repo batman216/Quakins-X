@@ -31,6 +31,14 @@ struct EfieldSolver {
     }
 
   template <typename itor_type>
+  void operator()(itor_type phi_begin, itor_type phi_end, itor_type phi_ext_begin,
+                  std::array<itor_type,dim> E_begin) {
+    this->operator()(phi_begin,phi_end,E_begin);
+
+  }
+
+
+  template <typename itor_type>
   void operator()(itor_type phi_begin, itor_type phi_end,
                   std::array<itor_type,dim> E_begin) {
     auto middle_begin = thrust::make_zip_iterator(thrust::make_tuple(
@@ -47,17 +55,24 @@ struct EfieldSolver {
                       return C*(-thrust::get<0>(_tuple) + 8.*thrust::get<1>(_tuple)
                                 -8.*thrust::get<2>(_tuple) + thrust::get<3>(_tuple));
                       });
-    strided_chunk_range<itor_type>
-      Eleft(E_begin[0], E_begin[0]+n[0]*n[1], n[0], n_bd[0]);
-    strided_chunk_range<itor_type>
-      Eright(E_begin[0]+n[0]-n_bd[0], E_begin[0]+n[0]*n[1], n[0], n_bd[0]);
 
-    thrust::fill(thrust::device,Eleft.begin(),Eleft.end(),0.);
-    thrust::fill(thrust::device,Eright.begin(),Eright.end(),0.);
+    val_type Cb = 0.5/interval[0];
+    for (int i=0; i<n[1]; i++) {
+      int idx1 = i*n[0];
+      int idx2 = i*n[0]+1;
+      int idx3 = idx1+n[0]-2;
+      int idx4 = idx2+n[0]-2;
+
+      E_begin[0][idx1] = -Cb*(-3.*phi_begin[idx1]+4.*phi_begin[idx1+1]-phi_begin[idx1+2]);
+      E_begin[0][idx2] = -Cb*(-3.*phi_begin[idx2]+4.*phi_begin[idx2+1]-phi_begin[idx2+2]);
+      E_begin[0][idx3] = -Cb*(phi_begin[idx3-2]-4.*phi_begin[idx3-1]+3.*phi_begin[idx3]);
+      E_begin[0][idx4] = -Cb*(phi_begin[idx4-2]-4.*phi_begin[idx4-1]+3.*phi_begin[idx4]);
+    }
+
 
     ReorderCopy<idx_type,val_type,dim> reorder1(n,{1,0}), reorder2({n[1],n[0]},{1,0});
 
-    thrust::device_vector<val_type> phi_re(ntot);
+    thrust::device_vector<val_type> phi_re(ntot),E1_buf(ntot);
     reorder1(phi_begin,phi_begin+ntot,phi_re.begin());
     
     auto middle_begin1 = thrust::make_zip_iterator(thrust::make_tuple(
@@ -66,19 +81,26 @@ struct EfieldSolver {
  
     val_type C1 = 1./12./interval[1];
     thrust::transform(thrust::device, 
-                      middle_begin1, middle_begin1+ntot-2, E_begin[1]+2,
+                      middle_begin1, middle_begin1+ntot-2, E1_buf.begin()+2,
                       [C1]__host__ __device__(zipItor _tuple) {
                       return C1*(-thrust::get<0>(_tuple) + 8.*thrust::get<1>(_tuple)
                                 -8.*thrust::get<2>(_tuple) + thrust::get<3>(_tuple));
                       });
-    strided_chunk_range<itor_type>
-      Eleft1(E_begin[1], E_begin[1]+ntot, n[1], n_bd[1]);
-    strided_chunk_range<itor_type>
-      Eright1(E_begin[1]+n[1]-n_bd[1], E_begin[1]+ntot, n[1], n_bd[1]);
 
-    thrust::fill(thrust::device,Eleft1.begin(),Eleft1.end(),0.);
-    thrust::fill(thrust::device,Eright1.begin(),Eright1.end(),0.);
+    val_type Cb1 = 0.5/interval[1];
+    for (int i=0; i<n[0]; i++) {
+      int idx1 = i*n[1];
+      int idx2 = i*n[1]+1;
+      int idx3 = idx1+n[1]-2;
+      int idx4 = idx2+n[1]-2;
 
+      E1_buf[idx1] = -Cb1*(-3.*phi_re[idx1]+4.*phi_re[idx1+1]-phi_re[idx1+2]);
+      E1_buf[idx2] = -Cb1*(-3.*phi_re[idx2]+4.*phi_re[idx2+1]-phi_re[idx2+2]);
+      E1_buf[idx3] = -Cb1*(phi_re[idx3-2]-4.*phi_re[idx3-1]+3.*phi_re[idx3]);
+      E1_buf[idx4] = -Cb1*(phi_re[idx4-2]-4.*phi_re[idx4-1]+3.*phi_re[idx4]);
+    }
+
+    reorder2(E1_buf.begin(),E1_buf.end(),E_begin[1]);
 
   }
 
@@ -136,7 +158,7 @@ public:
                vitor_type v_begin, int gpu) {
 
     EfieldSolver<idx_type,val_type,2> solveEfield({nx1-2*nx1bd,nx2-4*nx2bd},{2,2},{dx1,dx2});
-    solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-4*nx2bd),
+    solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-4*nx2bd),v_begin,
                 std::array<itor_type,2>{Ex.begin(),Ey.begin()});
     
     std::ofstream Eout("testE",std::ios::out);
@@ -150,18 +172,19 @@ public:
                     thrust::raw_pointer_cast(&(*itor_begin)));
 
     val_type time_step = this->dt;
-
+    val_type F1, F2;
     for (int i=0; i<nx1*nx2loc; i++) {
 
+      F1 = Ex[i]; F2 = Ex[i];
       thrust::transform(thrust::device,
                         comp_ptr + i*nv1*nv2/2,
                         comp_ptr + (i+1)*nv1*nv2/2,
                         lam1.begin(),
                         comp_ptr + i*nv1*nv2/2,
-                        [time_step]__host__ __device__
+                        [time_step,F1]__host__ __device__
                         (cufftComplex val, const val_type& lam) {
                           cufftComplex next_val;
-                          val_type phase = .4*time_step*lam;
+                          val_type phase = F1*time_step*lam;
                           next_val.x =  val.x*cos(phase) - val.y*sin(phase);
                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
                           return next_val;
@@ -172,10 +195,10 @@ public:
                         comp_ptr + (i+1)*nv1*nv2/2,
                         lam2.begin(),
                         comp_ptr + i*nv1*nv2/2,
-                        [time_step]__host__ __device__
+                        [time_step,F2]__host__ __device__
                         (cufftComplex val, const val_type& lam) {
                           cufftComplex next_val;
-                          val_type phase = .4*time_step*lam;
+                          val_type phase = F2*time_step*lam;
                           next_val.x =  val.x*cos(phase) - val.y*sin(phase);
                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
                           return next_val;
