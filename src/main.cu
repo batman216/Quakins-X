@@ -2,12 +2,8 @@
  *     Main of the Quakins-X Code
  * ------------------------------- */
 
-#include <thrust/host_vector.h>
-#include <thrust/execution_policy.h>
-#include <thrust/gather.h>
-#include <cstdio>
+#include <iostream>
 #include <mpi.h>
-#include <cufftXt.h>
 
 #include "include/initialization.hpp"
 #include "include/PhaseSpaceInitialization.hpp"
@@ -22,7 +18,7 @@
 #include "include/InsertGhost.hpp"
 #include "include/fftOutPlace.hpp"
 #include "include/Slice.hpp"
-
+#include "include/TestParticle.hpp"
 
 using Nums = std::size_t;
 using Real = float;
@@ -112,11 +108,9 @@ int main(int argc, char* argv[]) {
     quakins::details::WignerTerm> wignerSolver(p,p->dt);
   quakins::FreeStream<Nums,Real,dim,4,0,
     quakins::details::FourierSpectrumVeloSpace> vSolver(p,p->dt);
- 
 
   quakins::Boundary<Nums,ReflectingBoundary>
     boundX1(nx1,nx1bd,nv1,nx1tot*nx2allloc*nv2);
-
 
   quakins::PoissonSolver<Nums,Real,2, FFTandInvHost> 
     poissonSolver({nx1,nx2},{x1min,x2min, x1max,x2max});
@@ -148,7 +142,14 @@ int main(int argc, char* argv[]) {
                _dens_e_all.begin());
   poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
  
-
+  std::array<thrust::device_vector<Real>,2> x_coord;
+  for (int i=0;i<2;i++) {
+    x_coord[i].resize(p->n[i+2]);
+    for (int j=0;j<p->n[i+2];j++) {
+      x_coord[i][j] = p->low_bound[i+2] + p->interval[i+2]*(static_cast<Real>(j)+0.5); 
+    }
+  }
+  TestParticle<Nums,Real,2> addTestParticle(p,x_coord);
 
   Nums id = mpi_rank;
   
@@ -170,7 +171,7 @@ int main(int argc, char* argv[]) {
   quakins::Slicer<Nums,Real,4,0,1> slice2(p->n_all_local,id,"slice_v2v2");
   quakins::FFT<Nums,Real,2> fft(std::array<Nums,2>{nv1,nv2},nx1tot*nx2allloc);
 
-  the_watch.tick("Main Loop start...");
+
   for (Nums step=0; step<p->time_step_total; step++) {
 
     nccl_watch.tick("NCCL communicating..."); //----------------------------------
@@ -187,15 +188,13 @@ int main(int argc, char* argv[]) {
     copy3(f_e.begin(),f_e.end(),f_e_buff.begin()); // n_now = {nv1,nv2,nx1,nx2l}
 
     thrust::copy(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
-
     push_watch.tock(); //========================================================
-
-    poi_watch.tick("solving poisson..."); //-------------------------------------
 
     integral1(f_e.begin(),intg_buff.begin());
     integral2(intg_buff.begin(),dens_e.begin());
     
     densGather(dens_e_all.begin(), dens_e.begin()+nx1tot*nx2bd);
+        
 
     if (mpi_rank==0) {
       dens_copy(dens_e_all.begin(),dens_e_all.end(),dens_e_all_buff.begin());
@@ -207,6 +206,7 @@ int main(int argc, char* argv[]) {
       thrust::copy(_pote_all.begin(),_pote_all.end(),pote_all.begin());    
     }
     potBcast(pote_all.begin());
+    addTestParticle(pote_all.begin(),pote_all.end());
 
     if (step%(p->dens_print_intv)==0) {
       dout << _dens_e_all << std::endl;
@@ -214,15 +214,15 @@ int main(int argc, char* argv[]) {
     //  slice1({60,0,60,0},f_e.begin());
      // slice2({0,0,60,50},f_e.begin());
     }
+
     // velocity direction push  
+    fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
+    vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+    fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
 
-//    fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
-//    vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
-//    fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
-
+    if (step%10==0) system("cp ~/Quakins-X/run/*.qout /mnt/c/data_process");
   }
 
-  the_watch.tock();
   dout.close();
 
 }

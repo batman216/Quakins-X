@@ -41,9 +41,11 @@ struct EfieldSolver {
   template <typename itor_type>
   void operator()(itor_type phi_begin, itor_type phi_end,
                   std::array<itor_type,dim> E_begin) {
+
     auto middle_begin = thrust::make_zip_iterator(thrust::make_tuple(
                                 phi_begin+2-2,phi_begin+2-1,
                                 phi_begin+2+1,phi_begin+2+2));
+   
 
     
     using zipItor = thrust::tuple<val_type,val_type,val_type,val_type>;
@@ -120,6 +122,7 @@ class FourierSpectrumVeloSpace {
   val_type dl1, dl2, dt;
 
   thrust::device_vector<val_type> Ex, Ey, lam1,lam2;
+  std::ofstream Eout;
 
 public:
   template <typename Parameters>
@@ -130,6 +133,7 @@ public:
   dv1(p->interval[0]), dv2(p->interval[1]), 
   nx1bd(p->n_ghost[2]), nx2bd(p->n_ghost[3]) {
 
+    Eout.open("testE.qout",std::ios::out);
     dl1 = 2.*M_PI/(nv1-2)/p->interval[0]; 
     dl2 = 2.*M_PI/(nv2)/p->interval[1]; 
     
@@ -157,57 +161,62 @@ public:
   void advance(itor_type itor_begin, itor_type itor_end, 
                vitor_type v_begin, int gpu) {
 
+
     EfieldSolver<idx_type,val_type,2> solveEfield({nx1-2*nx1bd,nx2-4*nx2bd},{2,2},{dx1,dx2});
     solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-4*nx2bd),v_begin,
                 std::array<itor_type,2>{Ex.begin(),Ey.begin()});
     
-    std::ofstream Eout("testE",std::ios::out);
     thrust::copy(Ex.begin(),Ex.end(),std::ostream_iterator<val_type>(Eout," "));
     Eout << std::endl;
     thrust::copy(Ey.begin(),Ey.end(),std::ostream_iterator<val_type>(Eout," "));
     Eout << std::endl;
-
 
     auto comp_ptr = reinterpret_cast<cufftComplex*>(
                     thrust::raw_pointer_cast(&(*itor_begin)));
 
     val_type time_step = this->dt;
     val_type F1, F2;
-    for (int i=0; i<nx1*nx2loc; i++) {
 
-      F1 = Ex[i]; F2 = Ex[i];
-      thrust::transform(thrust::device,
-                        comp_ptr + i*nv1*nv2/2,
-                        comp_ptr + (i+1)*nv1*nv2/2,
-                        lam1.begin(),
-                        comp_ptr + i*nv1*nv2/2,
-                        [time_step,F1]__host__ __device__
-                        (cufftComplex val, const val_type& lam) {
-                          cufftComplex next_val;
-                          val_type phase = F1*time_step*lam;
-                          next_val.x =  val.x*cos(phase) - val.y*sin(phase);
-                          next_val.y =  val.x*sin(phase) + val.y*cos(phase);
-                          return next_val;
-                        });
+    int jstart = gpu*nx2loc;
+    for (int j1=nx2bd+jstart; j1<jstart+nx2loc-nx2bd; j1++) {
+      for (int i1=nx1bd; i1<nx1-nx1bd; i1++) {
 
-      thrust::transform(thrust::device,
-                        comp_ptr + i*nv1*nv2/2,
-                        comp_ptr + (i+1)*nv1*nv2/2,
-                        lam2.begin(),
-                        comp_ptr + i*nv1*nv2/2,
-                        [time_step,F2]__host__ __device__
-                        (cufftComplex val, const val_type& lam) {
-                          cufftComplex next_val;
-                          val_type phase = F2*time_step*lam;
-                          next_val.x =  val.x*cos(phase) - val.y*sin(phase);
-                          next_val.y =  val.x*sin(phase) + val.y*cos(phase);
-                          return next_val;
-                        });
+        int i = i1 + j1*nx1 - gpu*nx1*nx2loc;
+        int I = i1-nx1bd + (j1-(2*gpu+1)*nx2bd)*(nx1-2*nx1bd);
 
-    }
-   
+        F1 = Ex[I]; F2 = Ey[I];
+
+        thrust::transform(thrust::device,
+                         comp_ptr + i*nv1*nv2/2,
+                         comp_ptr + (i+1)*nv1*nv2/2,
+                         lam1.begin(),
+                         comp_ptr + i*nv1*nv2/2,
+                         [time_step,F1]__host__ __device__
+                          (cufftComplex val, const val_type& lam) {
+                           cufftComplex next_val;
+                           val_type phase = F1*time_step*lam;
+                            next_val.x =  val.x*cos(phase) - val.y*sin(phase);
+                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
+                           return next_val;
+                         });
+
+        thrust::transform(thrust::device,
+                         comp_ptr + i*nv1*nv2/2,
+                         comp_ptr + (i+1)*nv1*nv2/2,
+                         lam2.begin(),
+                         comp_ptr + i*nv1*nv2/2,
+                         [time_step,F2]__host__ __device__
+                         (cufftComplex val, const val_type& lam) {
+                           cufftComplex next_val;
+                           val_type phase = F2*time_step*lam;
+                           next_val.x =  val.x*cos(phase) - val.y*sin(phase);
+                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
+                            return next_val;
+                          });
+
+      }
+    }   
   }
-
 };
 
 

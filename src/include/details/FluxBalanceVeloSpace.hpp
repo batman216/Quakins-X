@@ -16,7 +16,6 @@ namespace quakins {
 
 namespace details {
 
-
 template <typename idx_type,
           typename val_type,
           idx_type dim,
