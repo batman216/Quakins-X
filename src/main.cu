@@ -59,7 +59,6 @@ int main(int argc, char* argv[]) {
   Real x1min=p->low_bound[2], x1max=p->up_bound[2];
   Real x2min=p->low_bound[3], x2max=p->up_bound[3];
 
-  
   quakins::ParallelCommunicator<Nums,Real> 
     q_comm(mpi_rank, mpi_size, MCW);
   quakins::PhaseSpaceParallelCommute<Nums,Real>
@@ -171,6 +170,7 @@ int main(int argc, char* argv[]) {
   quakins::Slicer<Nums,Real,4,0,1> slice2(p->n_all_local,id,"slice_v2v2");
   quakins::FFT<Nums,Real,2> fft(std::array<Nums,2>{nv1,nv2},nx1tot*nx2allloc);
 
+  std::cout << "Main loop start..." << std::endl; 
 
   for (Nums step=0; step<p->time_step_total; step++) {
 

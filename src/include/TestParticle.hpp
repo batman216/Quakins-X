@@ -19,9 +19,9 @@ public:
     for (int i=0; i<p->n[dim+0];i++)
       for (int j=0; j<p->n[dim+1];j++) {
         
-        phi_p[j*n1+i] = 0.2*erff(6.*x_coord[0][i])/
+        phi_p[j*n1+i] = 0.02*erff(5.*x_coord[0][i])/
                            std::sqrt(std::pow(x_coord[0][i],2)
-                                    +std::pow(x_coord[1][j]-10,2));
+                                    +std::pow(x_coord[1][j]-30,2));
 
       }
 

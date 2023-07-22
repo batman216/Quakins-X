@@ -168,9 +168,25 @@ void assign(A& val, const std::string& name,
   buffer >> val;
 }
 
+// split a string 
+std::vector<std::string> splitString(std::string str, const char split);
+
+// read box in the input file
 std::map<std::string, std::string> 
-    read_box(std::ifstream& is,    
-             std::string box_name);
+readBox(std::ifstream& is,std::string box_name);
+
+
+struct LinuxCommand {
+
+  int start, intv;
+  std::string command;
+
+  LinuxCommand();
+  LinuxCommand(int,int,std::string);
+};
+// read runtime Linux command in the input file
+std::unordered_map<std::string, LinuxCommand>
+readRuntimeCommand(std::ifstream& is);
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const thrust::host_vector<T>& obj) {

@@ -5,6 +5,7 @@
 #include <omp.h>
 #include "util.hpp"
 
+#define INPUT_FILE "quakins.input"
 
 template <typename idx_type, typename val_type, idx_type dim>
 struct Parameters {
@@ -44,8 +45,9 @@ struct Parameters {
 
   idx_type dens_print_intv;
 
-
   std::string dens_profile_str = "GaussShape";
+
+  std::unordered_map<std::string,LinuxCommand> runtime_commands;
 };
 
 namespace quakins {
@@ -54,9 +56,16 @@ namespace quakins {
 template<typename idx_type, typename val_type, idx_type dim>
 void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
   
-  std::ifstream input_file("quakins.input");
+  std::ifstream input_file(INPUT_FILE);
 
-  auto t_map = read_box(input_file, "time");
+  p->runtime_commands = readRuntimeCommand(input_file);
+
+  for (auto& elem : p->runtime_commands)
+    std::cout << elem.first <<  std::endl;
+  
+  input_file.close();
+  input_file.open(INPUT_FILE);
+  auto t_map = readBox(input_file, "time");
   
   int temp; // todo: this is not very elegant.
   cudaGetDeviceCount(&temp);
@@ -67,8 +76,10 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
 
   std::cout << "This shot is about to run "
             << p->time_step_total << " steps." << std::endl;
+  input_file.close();
+  input_file.open(INPUT_FILE);
 
-  auto d_map = read_box(input_file, "domain");
+  auto d_map = readBox(input_file, "domain");
   
   assign(p->n[0], "nv1", d_map);
   assign(p->n[1], "nv2", d_map);
@@ -88,8 +99,11 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
   assign(p->up_bound[1], "v2max", d_map);
   assign(p->up_bound[2], "x1max", d_map);
   assign(p->up_bound[3], "x2max", d_map);
-  
-  auto dia_map = read_box(input_file, "diagnosis");
+
+  input_file.close();
+  input_file.open(INPUT_FILE);
+
+  auto dia_map = readBox(input_file, "diagnosis");
   assign(p->dens_print_intv, "dens_print_intv", dia_map);
 
   // simulation domain size 
@@ -136,7 +150,6 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
               << 2*mem_size/p->n_dev << "Mb per GPU." << std::endl;
   }
   
-
   // execption
   auto step_length0 = p->dt*p->up_bound[0]/p->interval[2]; 
   auto step_length1 = p->dt*p->up_bound[1]/p->interval[3]; 
