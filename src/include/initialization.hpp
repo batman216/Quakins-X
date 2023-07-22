@@ -60,8 +60,7 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
 
   p->runtime_commands = readRuntimeCommand(input_file);
 
-  for (auto& elem : p->runtime_commands)
-    std::cout << elem.first <<  std::endl;
+  std::cout << p->runtime_commands["copytoc"].command <<  std::endl;
   
   input_file.close();
   input_file.open(INPUT_FILE);

@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) {
     vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
     fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
 
-    if (step%10==0) system("cp ~/Quakins-X/run/*.qout /mnt/c/data_process");
+    if (step%10==0) system(p->runtime_commands["copytoc"].command.c_str());
   }
 
   dout.close();
