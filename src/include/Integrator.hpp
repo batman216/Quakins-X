@@ -13,6 +13,8 @@
 
 #include <iostream>
 
+#include "Weighter.hpp"
+
 namespace quakins {
 
 template<typename val_type>
@@ -36,12 +38,14 @@ struct Integrator {
     typedef thrust::tuple<int,val_type> Tuple;
     auto titor_begin = make_transform_iterator(zitor_begin,
     [C]__host__ __device__(Tuple _tuple){ 
-      
+
        return static_cast<val_type>(thrust::get<1>(_tuple) 
                        *(thrust::get<0>(_tuple)%2==0? 2.*C:4.*C)); 
 
     });
     
+
+
     std::size_t nn = this->n;
     auto binary_pred = [nn]__host__ __device__(int i,int j) { return i/nn==j/nn ; };
 

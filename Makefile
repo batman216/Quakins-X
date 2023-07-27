@@ -58,7 +58,7 @@ ${BLD}/%.o: ${SRC}/%.cpp
 	${CXX} ${MACRO} ${SUPPRESS} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 mpirun: ${BLD}/${EXE} ${INPUT}
-	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 2 ./${EXE}
+	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 6 ./${EXE}
 
 run: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && ./${EXE}

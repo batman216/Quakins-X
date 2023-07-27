@@ -32,7 +32,7 @@ class FFTandInv {
 
 public:
   FFTandInv(std::array<idx_type,dim> n_dim,
-            std::array<val_type,2*dim> bound) {
+            std::array<val_type,2*dim> bound,char coord) {
     
     cufftCreate(&plan_fwd);
     cufftCreate(&plan_inv);
@@ -123,7 +123,7 @@ class FFTandInvHost {
   
 public:
   FFTandInvHost(std::array<idx_type,dim> n_dim,
-                std::array<val_type,2*dim> bound) {
+                std::array<val_type,2*dim> bound, char coord) {
 
     nr = static_cast<int>(n_dim[0]);
     nz = static_cast<int>(n_dim[1]);
@@ -183,11 +183,15 @@ public:
     std::vector<Triplet> idxValList;
     idxValList.reserve(size*3-2*nz);
 
-    val_type idr_d2 = .5/dr, idr_s2 = 1./dr/dr;
+    val_type idr_d2 = coord==0?0:.5/dr, idr_s2 = 1./dr/dr;
 
     for (int I=0; I<nz; ++I) {
       // boundary condition at r=0
-      idxValList.push_back(Triplet(I*nr,I*nr, 
+      if (coord=='d')
+        idxValList.push_back(Triplet(I*nr,I*nr, 
+                                  k[I]*k[I]+2*idr_s2+idr_d2/r[0]));
+      else 
+        idxValList.push_back(Triplet(I*nr,I*nr, 
                                   k[I]*k[I]+idr_s2+idr_d2/r[0]));
 
       for (int i=1; i<nr; ++i) {
@@ -216,7 +220,7 @@ public:
 
     // substract ion
     std::for_each(f1x.begin(),f1x.end(),
-                  [](auto& val) { val-=1.0; });
+                  [](auto& val) { val=1.0-val; });
 
     fftw_execute(plan_fwd);
     

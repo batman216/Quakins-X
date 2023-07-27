@@ -4,17 +4,17 @@
 
 @ time --------------------------------*
 
-step_total      = 400
-dt              = 0.1
+step_total      = 800
+dt              = 0.06
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1             =  200
-nx2             =  400
-nv1             =  160
-nv2             =  160
+nx1             =  150
+nx2             =  300
+nv1             =  180
+nv2             =  180
 
 nx1_ghost       =  5
 nx2_ghost       =  5
@@ -22,9 +22,9 @@ nv1_ghost       =  0
 nv2_ghost       =  0
 
 x1min           =  0
-x1max           =  30
+x1max           =  40
 x2min           =  0
-x2max           =  60
+x2max           =  80
 v1min           = -6
 v1max           =  6
 v2min           = -6
@@ -34,7 +34,7 @@ v2max           =  6
 
 @ runtime -----------------------------*
 
-copytoc         = 0,10,cp ~/Quakins-X/run/*.qout /mnt/c/data_process
+copytoc         = 0,10,echo 'haha'
 
 @ runtime -----------------------------*
 
@@ -59,7 +59,7 @@ Theta           =  0.1
 
 @ diagnosis ---------------------------*
 
-dens_print_intv =  10
+dens_print_intv =  2
 
 system_ctrl_1   =  cd
 ctrl_1_intv     =  10
