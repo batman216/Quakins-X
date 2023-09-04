@@ -183,7 +183,7 @@ public:
     std::vector<Triplet> idxValList;
     idxValList.reserve(size*3-2*nz);
 
-    val_type idr_d2 = coord==0?0:.5/dr, idr_s2 = 1./dr/dr;
+    val_type idr_d2 = coord=='d'?0:.5/dr, idr_s2 = 1./dr/dr;
 
     for (int I=0; I<nz; ++I) {
       // boundary condition at r=0

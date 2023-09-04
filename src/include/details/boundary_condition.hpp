@@ -52,13 +52,14 @@ struct ReflectingBoundary {
       thrust::copy(left_inside.begin(),left_inside.end(),left_bd.begin());
 
       // r=rmax free 
+      /*
       strided_chunk_range<itor_type>
         right_inside_neg(itor_neg_begin+nx, itor_neg_begin+n_chunk, n_tot,n_bd);
       strided_chunk_range<itor_type>
         right_bd_neg(itor_neg_begin+nx+n_bd, itor_neg_begin+n_chunk, n_tot,n_bd);
 
       thrust::copy(right_inside_neg.begin(),right_inside_neg.end(),right_bd_neg.begin());
-
+*/
 
 
       // padding the other side to avoid sharp edge at the boundary, 

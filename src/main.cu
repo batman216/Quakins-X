@@ -71,14 +71,14 @@ int main(int argc, char* argv[]) {
   thrust::device_vector<Real> 
     f_e(p->n_1d_per_dev), f_e_buff(p->n_1d_per_dev);
   thrust::device_vector<Real> 
-    intg_buff(nxall*nv2), dens_e(nxall), p_energy(nxall);
+    intg_buff(nxall*nv2), dens_e(nxall), p_energy(nxall), v2(nxall);
   std::array<thrust::device_vector<Real>,dim/2> E;
   for (int i=0; i<dim/2; i++) E[i].resize(nx1*nx2);
 
 
   thrust::device_vector<Real> 
     dens_e_all(nx1tot*nx2), dens_e_all_buff(nx1tot*nx2), pote_all(nx1*nx2),
-    pote_all_tot(nx1tot*nx2), p_energy_all(nx1tot*nx2);
+    pote_all_tot(nx1tot*nx2), p_energy_all(nx1tot*nx2), v2_all(nx1tot*nx2);
   thrust::host_vector<Real> _dens_e_all(nx1*nx2), _pote_all(nx1*nx2);
 
   std::array<Nums,4> order1 = {3,2,0,1},
@@ -103,10 +103,11 @@ int main(int argc, char* argv[]) {
     quakins::details::FluxBalanceCoordSpace> fsSolverX1(p,p->dt);
   quakins::FreeStream<Nums,Real,dim,3,1,
     quakins::details::FluxBalanceCoordSpace> fsSolverX2(p,p->dt);
-  quakins::FreeStream<Nums,Real,dim,2,0,
-    quakins::details::WignerTerm> wignerSolver(p,p->dt);
   quakins::FreeStream<Nums,Real,dim,4,0,
     quakins::details::FourierSpectrumVeloSpace> vSolver(p,p->dt);
+  quakins::FreeStream<Nums,Real,dim,4,0,
+    quakins::details::WignerTerm> wignerSolver(p,p->dt);
+
 
   quakins::Boundary<Nums,ReflectingBoundary>
     boundX1(nx1,nx1bd,nv1,nx1tot*nx2allloc*nv2);
@@ -131,6 +132,7 @@ int main(int argc, char* argv[]) {
   std::ofstream dout("dens_e@"+std::to_string(mpi_rank)+".qout",std::ios::out);
   std::ofstream pout("potential@"+std::to_string(mpi_rank)+".qout",std::ios::out);
   std::ofstream energy_out("p_energy@"+std::to_string(mpi_rank)+".qout",std::ios::out);
+  std::ofstream v_out("v@"+std::to_string(mpi_rank)+".qout",std::ios::out);
   
 
   densGather(dens_e_all.begin(), dens_e.begin()+nx1tot*nx2bd);
@@ -195,12 +197,17 @@ int main(int argc, char* argv[]) {
     weighter.vSquare(f_e.begin(),f_e.end(),f_e_buff.begin());
     integral1(f_e_buff.begin(),intg_buff.begin());
     integral2(intg_buff.begin(),p_energy.begin());
+    weighter.velocity(f_e.begin(),f_e.end(),f_e_buff.begin(),1);
+    integral1(f_e_buff.begin(),intg_buff.begin());
+    integral2(intg_buff.begin(),v2.begin());
+
 
     integral1(f_e.begin(),intg_buff.begin());
     integral2(intg_buff.begin(),dens_e.begin());
     
     densGather(dens_e_all.begin(), dens_e.begin()+nx1tot*nx2bd);
-    densGather(p_energy_all.begin(), dens_e.begin()+nx1tot*nx2bd);
+    densGather(p_energy_all.begin(), p_energy.begin()+nx1tot*nx2bd);
+    densGather(v2_all.begin(), v2.begin()+nx1tot*nx2bd);
         
 
     if (mpi_rank==0) {
@@ -219,12 +226,14 @@ int main(int argc, char* argv[]) {
       dout << _dens_e_all << std::endl;
       pout << pote_all << std::endl;
       energy_out << p_energy_all << std::endl;
+      v_out << v2_all << std::endl;
     //  slice1({60,0,60,0},f_e.begin());
      // slice2({0,0,60,50},f_e.begin());
     }
     // velocity direction push  
     fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
-    vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+    //vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+    wignerSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
     fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
 
     if (step%10==0) system(p->runtime_commands["copytoc"].command.c_str());

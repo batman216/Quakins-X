@@ -1,7 +1,6 @@
 #pragma once
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 
 #include <fstream>
 #include <iostream>
@@ -9,6 +8,7 @@
 #include <cufft.h>
 
 #include "../ReorderCopy.hpp"
+#include "../thrust_fancy.hpp"
 
 namespace quakins {
 
@@ -23,8 +23,6 @@ struct EfieldSolver {
   const std::array<val_type,dim> interval;
   idx_type ntot;
   
-
-
   EfieldSolver(std::array<idx_type,dim> n, 
                std::array<idx_type,dim> n_bd, 
                std::array<val_type,dim> interval) 
@@ -146,7 +144,7 @@ class FourierSpectrumVeloSpace {
 
   val_type dl1, dl2, dt;
 
-  thrust::device_vector<val_type> Ex, Ey, lam1,lam2;
+  thrust::device_vector<val_type> Ex, Ey, lam1,lam2,phase;
   std::ofstream Eout;
 
 public:
@@ -166,6 +164,7 @@ public:
     Ey.resize((nx1-2*nx1bd)*(nx2-12*nx2bd));
 
     lam1.resize(nv1*nv2/2); lam2.resize(nv1*nv2/2);
+    phase.resize(nv1*nv2/2);
 
     for (int j=0; j<=nv2/2; j++) {
       for (int i=0; i<nv1/2; i++) {
@@ -185,7 +184,39 @@ public:
   template <typename itor_type, typename vitor_type>
   void advance(itor_type itor_begin, itor_type itor_end, 
                vitor_type v_begin, int gpu) {
+//--------------------------------------------------------------------------------
+    // Allocate CUDA array in device memory
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<val_type>();
+    // cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+    cudaArray_t phi_as_texture;
+    cudaMallocArray(&phi_as_texture, &channelDesc, nx1, nx2);
 
+    // Set pitch of the source (the width in memory in bytes of the 2D array pointed
+    // to by src, including padding), we dont have any padding
+    const size_t spitch = nx1 * sizeof(val_type);
+    // Copy data located at address h_data in host memory to device memory
+    cudaMemcpy2DToArray(phi_as_texture, 0, 0, thrust::raw_pointer_cast(&(*v_begin)),
+                        spitch, nx1 * sizeof(val_type),
+                        nx2, cudaMemcpyDeviceToDevice);
+    // Specify texture
+    cudaResourceDesc resDesc{};
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = phi_as_texture;
+
+    // Specify texture object parameters
+    cudaTextureDesc texDesc{};
+    texDesc.addressMode[0] = cudaAddressModeWrap;
+    texDesc.addressMode[1] = cudaAddressModeWrap;
+    texDesc.filterMode = cudaFilterModeLinear;
+    texDesc.readMode = cudaReadModeElementType;
+    texDesc.normalizedCoords = 1;
+
+    // Create texture object
+    cudaTextureObject_t texObj = 0;
+    cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
+
+
+//--------------------------------------------------------------------------------
     EfieldSolver<idx_type,val_type,2> solveEfield({nx1-2*nx1bd,nx2-12*nx2bd},{2,2},{dx1,dx2});
     solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-12*nx2bd),v_begin,
                 std::array<itor_type,2>{Ex.begin(),Ey.begin()});
@@ -202,45 +233,30 @@ public:
     val_type time_step = this->dt;
     val_type F1, F2;
 
-    int jstart = gpu*nx2loc;
+    int jstart = gpu*nx2loc, i, I;
     for (int j1=nx2bd+jstart; j1<jstart+nx2loc-nx2bd; j1++) {
       for (int i1=nx1bd; i1<nx1-nx1bd; i1++) {
 
-        int i = i1 + j1*nx1 - gpu*nx1*nx2loc;
-        int I = i1-nx1bd + (j1-(2*gpu+1)*nx2bd)*(nx1-2*nx1bd);
+        i = i1 + j1*nx1 - gpu*nx1*nx2loc;
+        I = i1-nx1bd + (j1-(2*gpu+1)*nx2bd)*(nx1-2*nx1bd);
 
         F1 = Ex[I]; F2 = Ey[I];
-
+        
         thrust::transform(thrust::device,
-                         comp_ptr + i*nv1*nv2/2,
-                         comp_ptr + (i+1)*nv1*nv2/2,
-                         lam1.begin(),
-                         comp_ptr + i*nv1*nv2/2,
-                         [time_step,F1]__host__ __device__
-                          (cufftComplex val, const val_type& lam) {
-                           cufftComplex next_val;
-                           val_type phase = F1*time_step*lam;
-                            next_val.x =  val.x*cos(phase) - val.y*sin(phase);
-                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
-                           return next_val;
-                         });
-
-        thrust::transform(thrust::device,
-                         comp_ptr + i*nv1*nv2/2,
-                         comp_ptr + (i+1)*nv1*nv2/2,
-                         lam2.begin(),
-                         comp_ptr + i*nv1*nv2/2,
-                         [time_step,F2]__host__ __device__
-                         (cufftComplex val, const val_type& lam) {
-                           cufftComplex next_val;
-                           val_type phase = F2*time_step*lam;
-                           next_val.x =  val.x*cos(phase) - val.y*sin(phase);
-                           next_val.y =  val.x*sin(phase) + val.y*cos(phase);
-                            return next_val;
+                          lam1.begin(),lam1.end(),lam2.begin(),phase.begin(),
+                          [time_step,F1,F2]__host__ __device__
+                          (const val_type& l1, const val_type& l2) {
+                            return (F1*l1+F2*l2)*time_step; 
                           });
+        evolve_with_phase(comp_ptr + i*nv1*nv2/2,
+                          comp_ptr + (i+1)*nv1*nv2/2,
+                          phase.begin());                          
 
       }
     }   
+    
+    cudaDestroyTextureObject(texObj);
+    cudaFreeArray(phi_as_texture);
   }
 };
 

@@ -44,8 +44,6 @@ struct Integrator {
 
     });
     
-
-
     std::size_t nn = this->n;
     auto binary_pred = [nn]__host__ __device__(int i,int j) { return i/nn==j/nn ; };
 

@@ -1,6 +1,5 @@
 #pragma once
 
-
 namespace quakins {
 
 
@@ -33,8 +32,39 @@ struct Weighter {
 
     for (int i=0; i<dim;i++) 
       v[i].resize(v_tot); 
+  
     
   }
+
+  template <typename itor_type>
+  void velocity(itor_type in_begin, itor_type in_end, itor_type out_begin, int d) {
+   
+    int nin = nv[d];
+    val_type dv_ = dv[d],lb = vmin[d];
+
+    thrust::transform(thrust::make_counting_iterator(0),
+                      thrust::make_counting_iterator(static_cast<int>(v_tot)),
+                      v[dim].begin(),
+                      [nin,dv_,lb]__host__ __device__(int idx) { 
+                        return static_cast<val_type>(idx%nin)*dv_ + lb;
+                      });
+   
+    idx_type __vtot = v_tot;
+    auto titor_begin = thrust::make_permutation_iterator(v[dim].begin(),
+                        thrust::make_transform_iterator(
+                          thrust::make_counting_iterator(static_cast<idx_type>(0)),
+                          [__vtot]__host__ __device__(idx_type idx){ return idx%__vtot; }));
+
+    thrust::transform(in_begin, in_end, 
+                      titor_begin,
+                      out_begin,
+                      []__host__ __device__(val_type val1, val_type val2) {
+                        return val1*val2;
+                      });
+    
+  }
+
+
 
   template <typename itor_type>
   void vSquare(itor_type in_begin, itor_type in_end, itor_type out_begin) {
@@ -62,7 +92,8 @@ struct Weighter {
                       []__host__ __device__(val_type v1, val_type v2) { 
                         return powf(v1,2)+powf(v2,2);
                       });
-  
+   
+ 
     idx_type __vtot = v_tot;
     auto titor_begin = thrust::make_permutation_iterator(v_square.begin(),
                         thrust::make_transform_iterator(
