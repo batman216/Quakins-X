@@ -144,7 +144,7 @@ class FourierSpectrumVeloSpace {
 
   val_type dl1, dl2, dt;
 
-  thrust::device_vector<val_type> Ex, Ey, lam1,lam2,phase;
+  thrust::device_vector<val_type> Ex, Ey, lam1, lam2, phase;
   std::ofstream Eout;
 
 public:
@@ -184,39 +184,7 @@ public:
   template <typename itor_type, typename vitor_type>
   void advance(itor_type itor_begin, itor_type itor_end, 
                vitor_type v_begin, int gpu) {
-//--------------------------------------------------------------------------------
-    // Allocate CUDA array in device memory
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<val_type>();
-    // cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-    cudaArray_t phi_as_texture;
-    cudaMallocArray(&phi_as_texture, &channelDesc, nx1, nx2);
 
-    // Set pitch of the source (the width in memory in bytes of the 2D array pointed
-    // to by src, including padding), we dont have any padding
-    const size_t spitch = nx1 * sizeof(val_type);
-    // Copy data located at address h_data in host memory to device memory
-    cudaMemcpy2DToArray(phi_as_texture, 0, 0, thrust::raw_pointer_cast(&(*v_begin)),
-                        spitch, nx1 * sizeof(val_type),
-                        nx2, cudaMemcpyDeviceToDevice);
-    // Specify texture
-    cudaResourceDesc resDesc{};
-    resDesc.resType = cudaResourceTypeArray;
-    resDesc.res.array.array = phi_as_texture;
-
-    // Specify texture object parameters
-    cudaTextureDesc texDesc{};
-    texDesc.addressMode[0] = cudaAddressModeWrap;
-    texDesc.addressMode[1] = cudaAddressModeWrap;
-    texDesc.filterMode = cudaFilterModeLinear;
-    texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 1;
-
-    // Create texture object
-    cudaTextureObject_t texObj = 0;
-    cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-
-
-//--------------------------------------------------------------------------------
     EfieldSolver<idx_type,val_type,2> solveEfield({nx1-2*nx1bd,nx2-12*nx2bd},{2,2},{dx1,dx2});
     solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-12*nx2bd),v_begin,
                 std::array<itor_type,2>{Ex.begin(),Ey.begin()});
@@ -248,6 +216,8 @@ public:
                           (const val_type& l1, const val_type& l2) {
                             return (F1*l1+F2*l2)*time_step; 
                           });
+        
+        // f(t+dt) = f(t)exp(-i*phase)
         evolve_with_phase(comp_ptr + i*nv1*nv2/2,
                           comp_ptr + (i+1)*nv1*nv2/2,
                           phase.begin());                          
@@ -255,8 +225,6 @@ public:
       }
     }   
     
-    cudaDestroyTextureObject(texObj);
-    cudaFreeArray(phi_as_texture);
   }
 };
 

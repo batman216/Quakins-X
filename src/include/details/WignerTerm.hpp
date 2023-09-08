@@ -24,8 +24,8 @@ class WignerTerm {
 
   val_type dl1, dl2, dt, L1,L2;
 
-  thrust::device_vector<val_type> Ex, Ey, lam1,lam2, phase;
-  std::ofstream Eout;
+  thrust::device_vector<val_type> lam1,lam2, phase;
+  thrust::device_vector<val_type> lam1_normed,lam2_normed;
 
 public:
   template <typename Parameters>
@@ -36,20 +36,20 @@ public:
   dv1(p->interval[0]), dv2(p->interval[1]), 
   nx1bd(p->n_ghost[2]), nx2bd(p->n_ghost[3]) {
 
-    Eout.open("testE.qout",std::ios::out);
     dl1 = 2.*M_PI/(nv1-2)/p->interval[0]; 
     dl2 = 2.*M_PI/(nv2)/p->interval[1]; 
-    
-    Ex.resize((nx1-2*nx1bd)*(nx2-12*nx2bd));    
-    Ey.resize((nx1-2*nx1bd)*(nx2-12*nx2bd));
 
     lam1.resize(nv1*nv2/2); lam2.resize(nv1*nv2/2);
+    lam1_normed.resize(nv1*nv2/2); lam2_normed.resize(nv1*nv2/2);
     phase.resize(nv1*nv2/2); 
 
     for (int j=0; j<=nv2/2; j++) {
       for (int i=0; i<nv1/2; i++) {
         lam1[j*nv1/2+i] = i*dl1;
         lam2[j*nv1/2+i] = j*dl2;
+        lam1_normed[j*nv1/2+i] = i*dl1/L1;
+        lam2_normed[j*nv1/2+i] = j*dl2/L2;
+
       }
     }
 
@@ -57,9 +57,12 @@ public:
       for (int i=0; i<nv1/2; i++) {
         lam1[j*nv1/2+i] = i*dl1;
         lam2[j*nv1/2+i] = (j-static_cast<int>(nv2))*dl2;
+        lam1_normed[j*nv1/2+i] = i*dl1/L1;
+        lam2_normed[j*nv1/2+i] = (j-static_cast<int>(nv2))*dl2/L2;
       }
     }
-
+    
+      
   }
 
   template <typename itor_type, typename vitor_type>
@@ -69,15 +72,17 @@ public:
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<val_type>();
     // cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
     cudaArray_t phi_as_texture;
-    cudaMallocArray(&phi_as_texture, &channelDesc, nx1, nx2);
+    int n1 = nx1-2*nx1bd, n2 = nx2 - 12*nx2bd;
+
+    cudaMallocArray(&phi_as_texture, &channelDesc, n1, n2);
 
     // Set pitch of the source (the width in memory in bytes of the 2D array pointed
-    // to by src, including padding), we dont have any padding
-    const size_t spitch = nx1 * sizeof(val_type);
-    // Copy data located at address h_data in host memory to device memory
+    // to by src, including padding), we don't have any padding
+    const size_t spitch = n1 * sizeof(val_type);
+    // Copy data located at address v_begin in device memory to device memory
     cudaMemcpy2DToArray(phi_as_texture, 0, 0, thrust::raw_pointer_cast(&(*v_begin)), 
-                        spitch, nx1 * sizeof(val_type),
-                        nx2, cudaMemcpyDeviceToDevice);
+                        spitch, n1 * sizeof(val_type),
+                        n2, cudaMemcpyDeviceToDevice);
     // Specify texture
     cudaResourceDesc resDesc{};
     resDesc.resType = cudaResourceTypeArray;
@@ -94,38 +99,66 @@ public:
     // Create texture object
     cudaTextureObject_t texObj = 0;
     cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-
-
+    val_type X1, X2;
+      
+    val_type Q = 8, LL1 = L1, LL2 = L2;
+    
     auto comp_ptr = reinterpret_cast<cufftComplex*>(
                     thrust::raw_pointer_cast(&(*itor_begin)));
 
     val_type time_step = this->dt;
+    /*
+    std::ofstream kkk("phi.qout",std::ios::out);
+    thrust::copy(v_begin,v_begin+n1*n2,std::ostream_iterator<val_type>(kkk," "));
+    kkk.close();
+
+    thrust::device_vector<val_type> v_begin_int(n1*n2);
+    thrust::transform(thrust::make_counting_iterator(0),
+                      thrust::make_counting_iterator(n1*n2),
+                      v_begin_int.begin(),
+                      [n1,n2,d1,d2,texObj]__host__ __device__(int idx) {
+                         int i = idx%n1, j = idx/n1;
+                         return tex2D<val_type>(texObj,i*d1+0.2,j*d2);
+                      });
+
+    std::ofstream kkkk("phi_int.qout",std::ios::out);
+    thrust::copy(v_begin_int.begin(),v_begin_int.end(),std::ostream_iterator<val_type>(kkkk," "));
+    kkkk.close();
+*/
+    std::ofstream kkk("phi.qout",std::ios::out);
+    thrust::copy(v_begin,v_begin+n1*n2,std::ostream_iterator<val_type>(kkk," "));
+    kkk.close();
+    std::ofstream kkkk("phi_int.qout",std::ios::out);
+    
+
+
 
     int jstart = gpu*nx2loc, i, I;
-    val_type X1, X2;
     for (int j1=nx2bd+jstart; j1<jstart+nx2loc-nx2bd; j1++) {
       for (int i1=nx1bd; i1<nx1-nx1bd; i1++) {
-        
-        X1 = i1 * dx1; X2 = j1 * dx2; 
 
         i = i1 + j1*nx1 - gpu*nx1*nx2loc;
         I = i1-nx1bd + (j1-(2*gpu+1)*nx2bd)*(nx1-2*nx1bd);
   
-        auto l_begin = thrust::make_zip_iterator(
-                      thrust::make_tuple(lam1.begin(),lam2.begin()));
-        
-        using Tuple = thrust::tuple<val_type,val_type>;
-
-        val_type Q = 0.1, LL1 = L1, LL2 = L2;
-        
+        X1 = static_cast<val_type>(I%n1+.5) /n1;  
+        X2 = static_cast<val_type>(I/n1+.5) /n2;  
+/*
+        thrust::for_each(v_begin+I,v_begin+1+I,[I,texObj,X1,X2]__host__ __device__(val_type val) {
+                          printf("%.14f, %.14f\n",val,tex2D<val_type>(texObj,X1,X2));
+                        });
+                        */
         thrust::transform(thrust::device,
-                          lam1.begin(), lam1.end(), lam2.begin(), phase.begin(),
-                          [time_step,Q,X1,X2,LL1,LL2,texObj] __host__ __device__
+                          lam1_normed.begin(), lam1_normed.end(), 
+                          lam2_normed.begin(), phase.begin(),
+                          [time_step,Q,X1,X2,texObj] __host__ __device__
                           (const val_type ll1, const val_type ll2) {
-                            return -time_step*(tex2D<val_type>(texObj, (X1+ll1)/LL1,(X2+ll2)/LL2)
-                                             -tex2D<val_type>(texObj, (X1-ll1)/LL1,(X2-ll2)/LL2));
+                            return -time_step/Q*
+                            (tex2D<val_type>(texObj, X1+.5*Q*ll1,X2+.5*Q*ll2)
+                            -tex2D<val_type>(texObj, X1-.5*Q*ll1,X2-.5*Q*ll2));
                           });
-
+        
+        
+        // f(t+dt) = f(t)exp(-i*phase)
         evolve_with_phase(comp_ptr + i*nv1*nv2/2,
                           comp_ptr + (i+1)*nv1*nv2/2,
                           phase.begin());

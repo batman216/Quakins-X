@@ -77,7 +77,7 @@ int main(int argc, char* argv[]) {
 
 
   thrust::device_vector<Real> 
-    dens_e_all(nx1tot*nx2), dens_e_all_buff(nx1tot*nx2), pote_all(nx1*nx2),
+    dens_e_all(nx1tot*nx2), dens_e_all_buff(nx1tot*nx2), pote_all_buf(nx1*nx2),pote_all(nx1*nx2),
     pote_all_tot(nx1tot*nx2), p_energy_all(nx1tot*nx2), v2_all(nx1tot*nx2);
   thrust::host_vector<Real> _dens_e_all(nx1*nx2), _pote_all(nx1*nx2);
 
@@ -98,6 +98,7 @@ int main(int argc, char* argv[]) {
                  n_now_3.begin(), n_now_4.begin());
 
   quakins::ReorderCopy<Nums,Real,dim/2> dens_copy({nx1tot,nx2},{1,0});
+  quakins::ReorderCopy<Nums,Real,dim/2> pot_copy({nx2,nx1},{1,0});
 
   quakins::FreeStream<Nums,Real,dim,2,0,
     quakins::details::FluxBalanceCoordSpace> fsSolverX1(p,p->dt);
@@ -109,10 +110,10 @@ int main(int argc, char* argv[]) {
     quakins::details::WignerTerm> wignerSolver(p,p->dt);
 
 
-  quakins::Boundary<Nums,ReflectingBoundary>
+  quakins::Boundary<Nums,PeriodicBoundary>
     boundX1(nx1,nx1bd,nv1,nx1tot*nx2allloc*nv2);
 
-  quakins::PoissonSolver<Nums,Real,2, FFTandInvHost> 
+  quakins::PoissonSolver<Nums,Real,2, FFT2D_Cart> 
     poissonSolver({nx1,nx2},{x1min,x2min, x1max,x2max});
 
   quakins::Integrator<Real> 
@@ -217,8 +218,9 @@ int main(int argc, char* argv[]) {
 
       poissonSolver(_dens_e_all.begin(),_dens_e_all.end(),_pote_all.begin());
 
-      thrust::copy(_pote_all.begin(),_pote_all.end(),pote_all.begin());    
+      thrust::copy(_pote_all.begin(),_pote_all.end(),pote_all_buf.begin());    
     }
+    pot_copy(pote_all_buf.begin(),pote_all_buf.end(),pote_all.begin());
     potBcast(pote_all.begin());
     //addTestParticle(pote_all.begin(),pote_all.end());
 
@@ -232,7 +234,7 @@ int main(int argc, char* argv[]) {
     }
     // velocity direction push  
     fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
-    //vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+   // vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
     wignerSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
     fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
 
@@ -242,5 +244,6 @@ int main(int argc, char* argv[]) {
 
 
 }
+  
 
 

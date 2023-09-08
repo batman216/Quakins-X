@@ -239,21 +239,87 @@ public:
 };
 
 
-
-
 template<typename idx_type, typename val_type, idx_type dim>
-class FFT {
+class FFT2D_Cart {
   
+  // FFTW
+  fftw_plan plan_fwd, plan_inv;
+  int fft_size, real_size,comp_size, nx, nxh, ny, nyh;
+
+  std::complex<double> *pk;
+  double *px;
+ 
+  std::vector<double> inverse_k_square;
 
 public:
-  FFT(std::array<idx_type,dim> n_dim,
-      std::array<val_type,2*dim> bound) {}
+  FFT2D_Cart(std::array<idx_type,dim> n_dim,
+      std::array<val_type,2*dim> bound,char coord) {
+ 
+    nx = static_cast<int>(n_dim[0]);
+    nxh = nx/2+1;
+    ny = static_cast<int>(n_dim[1]);
+    nyh = ny/2+1;
 
-  template <typename itor_type> __host__  
-  void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+    val_type xmin = bound[0], ymin = bound[1];
+    val_type xmax = bound[2], ymax = bound[3];
+
+    val_type dkx = 2.*M_PI/(xmax-xmin);
+    val_type dky = 2.*M_PI/(ymax-ymin);
+
+    inverse_k_square.resize(nxh*ny);
+
+    val_type kx_sq, ky_sq;
+
+    inverse_k_square[0] = 0;
+    for (int i=1; i<nyh; i++) {
+      ky_sq = std::pow(i*dky,2);
+      inverse_k_square[i] = 1./ky_sq;
+    }
+
+    for (int j=1; j<nx; j++) {
+      kx_sq = j<=nx/2? std::pow(j*dkx,2)
+                     : std::pow((j-nx)*dkx,2);
+      for (int i=0; i<nyh; i++) {
+        ky_sq = std::pow(i*dky,2);
+        inverse_k_square[j*nyh+i] = 1./(kx_sq+ky_sq);
+      }
+    }
+
+    fft_size  = nx*ny;
+    real_size = nx*ny;     
+    comp_size = nx*nyh;  
+
+    pk = new std::complex<double>[comp_size];
+    px = new double[real_size];
+
+    plan_fwd = fftw_plan_dft_r2c_2d(nx,ny,px,reinterpret_cast<fftw_complex*>(pk),FFTW_MEASURE);
+    plan_inv = fftw_plan_dft_c2r_2d(nx,ny,reinterpret_cast<fftw_complex*>(pk),px,FFTW_MEASURE);
 
   }
 
+  template <typename itor_type> 
+  void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+ 
+    std::copy(in_begin,in_end,px);
+
+    // substract ion
+    std::for_each(px,px+real_size, [](auto& val) { val=val-1.0; });
+
+    fftw_execute(plan_fwd);
+/*      
+    std::ofstream ko("ktest.qout",std::ios::out);
+    for (int i=0; i<comp_size; ++i)  
+      ko << inverse_k_square[i] << "\t" << pk[i].real() << "\t" << pk[i].imag() << std::endl;
+    ko.close();
+ */     
+    for (int i=0; i<comp_size; ++i) { pk[i] *= -inverse_k_square[i]/fft_size;  }
+    
+    fftw_execute(plan_inv);
+    std::copy(px,px+real_size,out_begin);
+      
+  }
+
 };
+
 
 
