@@ -4,74 +4,99 @@
 
 @ time --------------------------------*
 
-step_total      = 8000
-dt              = 0.06
+step_total        = 6000
+dt                = 0.05
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1             =  200
-nx2             =  240
-nv1             =  120
-nv2             =  120
+nx1               =  180
+nx2               =  360
+nv1               =  180
+nv2               =  180
 
-nx1_ghost       =  5
-nx2_ghost       =  5
-nv1_ghost       =  0
-nv2_ghost       =  0
+nx1_ghost         =  5
+nx2_ghost         =  5
+nv1_ghost         =  0
+nv2_ghost         =  0
 
-x1min           =  0
-x1max           =  60
-x2min           =  0
-x2max           =  80
-v1min           = -4
-v1max           =  4
-v2min           = -4
-v2max           =  4
+x1min             =  0
+x1max             =  40
+x2min             =  0
+x2max             =  80
+v1min             = -4
+v1max             =  4
+v2min             = -4
+v2max             =  4
 
 @ domain ------------------------------*
 
 @ runtime -----------------------------*
 
-copytoc         = 0,10,echo 'haha'
+copytoc           = 0,10,echo 'haha'
 
 @ runtime -----------------------------*
 
-@ initial -----------------------------*
+@ space_initial -----------------------*
 
-shape           =  SingleMaxwellian  
-ptb             =  0.1
+x_sin_number      = 2 
+y_sin_number      = 2 
+x_cos_number      = 2 
+y_cos_number      = 2 
 
-v1              =  1
-v2              =  2
-v3              =  2
-v4              =  0
+ptb_x_cos         = 0.1,0.1
+ptb_x_sin         = 0.1,0.1
+ptb_y_cos         = 0.1,0.1
+ptb_y_sin         = 0.1,0.1
 
-@ initial -----------------------------*
+sin_kx            = 1,2
+sin_ky            = 1,2
+cos_kx            = 1,2
+cos_ky            = 1,2
+
+envelope_xwidth   = 0 
+envelope_ywidth   = 0
+envelope_height   = 0
+
+guassian_number   = 0
+
+@ space_initial -----------------------*
+
+@ velocity_initial --------------------*
+
+bump_number       =  2
+bump_shape        =  1,1
+x_bump_width      =  0.3,0.3
+y_bump_width      =  0.3,0.3
+bump_height       =  1,1
+x_bump_shift      =  1,-1
+y_bump_shift      =  1,-1
+
+@ velocity_initial --------------------*
 
 @ Quantum -----------------------------*
 
-hbar            =  1.0
-Theta           =  0.1
+hbar              =  1.0
+Theta             =  0.1
 
 @ Quantum -----------------------------*
 
 @ diagnosis ---------------------------*
 
-dens_print_intv =  10
+dens_print_intv   =  20
 
-system_ctrl_1   =  cd
-ctrl_1_intv     =  10
+system_ctrl_1     =  cd
+ctrl_1_intv       =  10
 
-system_ctrl_2   =  cd
-ctrl_2_intv     =  10
+system_ctrl_2     =  cd
+ctrl_2_intv       =  10
 
 @ diagnosis ---------------------------*
 
 @ test particle -----------------------*
 
-Z               =  1
-vp              =  1
+Z                 =  1
+vp                =  1
 
 @ test particle -----------------------*

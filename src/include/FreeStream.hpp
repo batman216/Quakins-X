@@ -11,22 +11,22 @@ struct Parameters;
 
 namespace quakins {
 
-template <typename idx_type,
-          typename val_type,
-          idx_type dim, idx_type xdim, idx_type vdim, 
-          template<typename,typename,idx_type,idx_type,
-                   idx_type> typename Policy>
+template <typename idx_type,typename val_type, idx_type dim, 
+          template<typename,typename,idx_type> typename Policy>
 class FreeStream {
 
-  typedef Policy<idx_type,val_type,dim,xdim,vdim> Algorithm; 
+  typedef Policy<idx_type,val_type,dim> Algorithm; 
 
   Algorithm *policy;
+
 public:
   
-  template<typename Parameters>
-  FreeStream(Parameters *p, val_type dt) {
+  template<typename Parameters,typename ParallelCommunicator>
+  FreeStream(Parameters *p, 
+             ParallelCommunicator *para, 
+             val_type dt, int xdim=0, int vdim=0) {
 
-    policy = new Algorithm(p, dt);  
+    policy = new Algorithm(p, para, dt, xdim,vdim);  
     
   }
 

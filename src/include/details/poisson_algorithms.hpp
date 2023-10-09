@@ -82,6 +82,8 @@ public:
 
     cusolverSpCreate(&plan_sol);
     
+    std::puts("Poisson solver is cylindrical.");
+
   }
 
   template <typename itor_type> __host__  
@@ -114,6 +116,7 @@ class FFTandInvHost {
   fftw_plan plan_fwd, plan_inv;
   std::vector<double> f1x, f2x;
   std::vector<std::complex<double>> f1k, f2k;
+  std::vector<val_type> r,k,rr;
   int size, fft_size, mat_size, nr, nz;
   
   // Eigen
@@ -123,7 +126,7 @@ class FFTandInvHost {
   
 public:
   FFTandInvHost(std::array<idx_type,dim> n_dim,
-                std::array<val_type,2*dim> bound, char coord) {
+                std::array<val_type,2*dim> bound) {
 
     nr = static_cast<int>(n_dim[0]);
     nz = static_cast<int>(n_dim[1]);
@@ -133,12 +136,19 @@ public:
     val_type dk = 2.*M_PI/(zmax-zmin);
     val_type dr = (rmax-rmin)/nr;
 
-    std::vector<val_type> r,k;
     r.reserve(nr); k.reserve(nz);
+    rr.reserve(nr*nz);
+    
+    for (int i=0;i<nr*nz;i++)   
+      r.push_back(rmin+i*dr+.5*dr);
 
-    for (int i=0;i<nr;i++)      r.push_back(rmin+i*dr+.5*dr);
-    for (int i=0;i<=nz/2;i++)   k.push_back(i*dk);
-    for (int i=1+nz/2;i<nz;i++) k.push_back((i-nz)*dk);
+    for (int j=0;j<nz;j++) for (int i=0;i<nr;i++)  
+      rr.push_back(r[j+i*nz]);
+    
+    for (int i=0;i<=nz/2;i++)   
+      k.push_back(i*dk);
+    for (int i=1+nz/2;i<nz;i++) 
+      k.push_back((i-nz)*dk);
 
    /**************************************************************************
     * parameters for advanced FFTW in/output (similar to cufftmany)
@@ -161,19 +171,25 @@ public:
     f1x.resize(size);    f2x.resize(size);
     f1k.resize(size);    f2k.resize(size);
 
+    /*****************************************************************
+    fftw_plan fftw_plan_many_dft(int rank, const int *n, int howmany,
+                                 fftw_complex *in, const int *inembed,
+                                 int istride, int idist,
+                                 fftw_complex *out, const int *onembed,
+                                 int ostride, int odist,
+                                 int sign, unsigned flags);
+    ******************************************************************/
     // FFTW prepare
     plan_fwd = fftw_plan_many_dft_r2c(fft_rank, n, howmany,
-                                      f1x.data(), n,
-                                      1, nz, 
+                                      f1x.data(), n, 1, nz, 
                                       reinterpret_cast<fftw_complex*>(f1k.data()), 
-                                      n, nr,1,
+                                      n, nr, 1,
                                       FFTW_MEASURE);
 
     plan_inv = fftw_plan_many_dft_c2r(fft_rank, n, howmany,
                                       reinterpret_cast<fftw_complex*>(f2k.data()), 
-                                      n, nr,1,
-                                      f2x.data(), n,
-                                      nr,1,
+                                      n, nr, 1,
+                                      f2x.data(), n, nr, 1,
                                       FFTW_MEASURE);
     // Eigen prepare
     mat_size = n_dim[0];
@@ -183,16 +199,50 @@ public:
     std::vector<Triplet> idxValList;
     idxValList.reserve(size*3-2*nz);
 
-    val_type idr_d2 = coord=='d'?0:.5/dr, idr_s2 = 1./dr/dr;
-
+#ifdef HIGH_POISS
+    std::puts("Poisson solver high accuracy.");
+    val_type is2 = 1.0/(dr*dr*12.0);
     for (int I=0; I<nz; ++I) {
       // boundary condition at r=0
-      if (coord=='d')
-        idxValList.push_back(Triplet(I*nr,I*nr, 
-                                  k[I]*k[I]+2*idr_s2+idr_d2/r[0]));
-      else 
-        idxValList.push_back(Triplet(I*nr,I*nr, 
-                                  k[I]*k[I]+idr_s2+idr_d2/r[0]));
+      idxValList.push_back(Triplet(I*nr,I*nr, 
+                                k[I]*k[I] + 30.0*is2));
+      idxValList.push_back(Triplet(I*nr,I*nr+1, 
+                                (-15.0-9.0*dr/r[0])*is2));
+      idxValList.push_back(Triplet(I*nr+1,I*nr, 
+                                (-15.0+7.0*dr/r[1])*is2));
+      idxValList.push_back(Triplet(I*nr+1,I*nr+1, 
+                                k[I]*k[I]+ 30.*is2));
+
+      for (int i=2; i<nr; ++i) {
+        int s = i + I*nr;  
+        if (i==nr-1)
+          idxValList.push_back(Triplet(s,s,
+                                     (31.0+dr/r[i])*is2+ k[I]*k[I]));
+        else
+          idxValList.push_back(Triplet(s,s,
+                                     30.*is2 + k[I]*k[I]));
+
+        idxValList.push_back(Triplet(s-1,s,
+                                     (-16.0-8.0*dr/r[i-1])*is2));
+        idxValList.push_back(Triplet(s,s-1,
+                                     (-16.0+8.0*dr/r[ i ])*is2));
+        idxValList.push_back(Triplet(s-2,s,
+                                     (  1.0+1.0*dr/r[i-2])*is2));
+        idxValList.push_back(Triplet(s,s-2,
+                                     (  1.0-1.0*dr/r[ i ])*is2));
+
+      }
+
+      // zero b.c. at r=rmax
+
+    }
+
+#else
+    val_type idr_d2 = .5/dr, idr_s2 = 1./dr/dr;
+    for (int I=0; I<nz; ++I) {
+      // boundary condition at r=0
+      idxValList.push_back(Triplet(I*nr,I*nr, 
+                                k[I]*k[I]+idr_s2+idr_d2/r[0]));
 
       for (int i=1; i<nr; ++i) {
         int s = i + I*nr;  
@@ -205,6 +255,7 @@ public:
       }
       // zero b.c. at r=rmax
     }
+#endif
     A.setFromTriplets(idxValList.begin(),idxValList.end());
     A.makeCompressed();
     solver.analyzePattern(A);
@@ -215,12 +266,9 @@ public:
   template <typename itor_type>   
   void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
-    std::copy(in_begin,in_end,f1x.begin());
-    
-
     // substract ion
-    std::for_each(f1x.begin(),f1x.end(),
-                  [](auto& val) { val=1.0-val; });
+    std::transform(in_begin,in_end,rr.begin(),f1x.begin(),
+                  [](auto val, val_type r) { return (val); });
 
     fftw_execute(plan_fwd);
     
@@ -240,6 +288,72 @@ public:
 
 
 template<typename idx_type, typename val_type, idx_type dim>
+class FFT1D {
+  
+  // FFTW
+  fftw_plan plan_fwd, plan_inv;
+  int fft_size, real_size,comp_size, nx, nxh;
+
+  std::complex<double> *pk;
+  double *px;
+ 
+  std::vector<double> inverse_k_square;
+
+public:
+  FFT1D(std::array<idx_type,dim> n_dim,
+      std::array<val_type,2*dim> bound) {
+ 
+    nx = static_cast<int>(n_dim[0]);
+    nxh = nx/2+1;
+
+    val_type xmin = bound[0];
+    val_type xmax = bound[1];
+
+    val_type dkx = 2.*M_PI/(xmax-xmin);
+
+    inverse_k_square.resize(nxh);
+
+    inverse_k_square[0] = 0;
+
+    val_type kx_sq;
+    for (int j=1; j<nx; j++) {
+      kx_sq = j<=nx/2? std::pow(j*dkx,2)
+                     : std::pow((j-nx)*dkx,2);
+      inverse_k_square[j] = 1/kx_sq/kx_sq;
+    }
+
+    fft_size  = nx;
+    real_size = nx;     
+    comp_size = nxh;  
+
+    pk = new std::complex<double>[comp_size];
+    px = new double[real_size];
+
+    plan_fwd = fftw_plan_dft_r2c_1d(nx,px,reinterpret_cast<fftw_complex*>(pk),FFTW_MEASURE);
+    plan_inv = fftw_plan_dft_c2r_1d(nx,reinterpret_cast<fftw_complex*>(pk),px,FFTW_MEASURE);
+
+  }
+
+  template <typename itor_type> 
+  void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+ 
+    std::copy(in_begin,in_end,px);
+
+    // substract ion
+    std::for_each(px,px+real_size, [](auto& val) { val-=1.0; });
+
+    fftw_execute(plan_fwd);
+
+    for (int i=0; i<comp_size; ++i) { pk[i] *= -inverse_k_square[i]/fft_size;  }
+    
+    fftw_execute(plan_inv);
+    std::copy(px,px+real_size,out_begin);
+      
+  }
+
+};
+
+template<typename idx_type, typename val_type, idx_type dim>
 class FFT2D_Cart {
   
   // FFTW
@@ -253,7 +367,7 @@ class FFT2D_Cart {
 
 public:
   FFT2D_Cart(std::array<idx_type,dim> n_dim,
-      std::array<val_type,2*dim> bound,char coord) {
+      std::array<val_type,2*dim> bound) {
  
     nx = static_cast<int>(n_dim[0]);
     nxh = nx/2+1;
@@ -303,7 +417,7 @@ public:
     std::copy(in_begin,in_end,px);
 
     // substract ion
-    std::for_each(px,px+real_size, [](auto& val) { val=val-1.0; });
+    std::for_each(px,px+real_size, [](auto& val) { val-=1.0; });
 
     fftw_execute(plan_fwd);
 /*      

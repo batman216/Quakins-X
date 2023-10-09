@@ -30,11 +30,13 @@ struct Weighter {
     }
     n_tot = v_tot*x_tot;
 
-    for (int i=0; i<dim;i++) 
+    for (int i=0; i<dim;i++) { 
       v[i].resize(v_tot); 
+    }
   
     
   }
+
 
   template <typename itor_type>
   void velocity(itor_type in_begin, itor_type in_end, itor_type out_begin, int d) {

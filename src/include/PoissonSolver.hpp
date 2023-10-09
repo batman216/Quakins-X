@@ -15,9 +15,9 @@ class PoissonSolver {
 public:
 
   PoissonSolver(std::array<idx_type,dim> n_dim,
-                std::array<val_type,2*dim> bound, char coord='d') {
+                std::array<val_type,2*dim> bound) {
 
-    policy = new Policy<idx_type,val_type,dim>(n_dim, bound,coord);
+    policy = new Policy<idx_type,val_type,dim>(n_dim, bound);
 
   }
   ~PoissonSolver() { delete policy; }

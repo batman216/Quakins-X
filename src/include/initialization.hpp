@@ -4,8 +4,8 @@
 #include <limits>
 #include <omp.h>
 #include "util.hpp"
+#include "macros.hpp"
 
-#define INPUT_FILE "quakins.input"
 
 template <typename idx_type, typename val_type, idx_type dim>
 struct Parameters {

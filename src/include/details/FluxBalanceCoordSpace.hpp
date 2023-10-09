@@ -19,8 +19,7 @@ namespace details {
 
 template <typename idx_type,
           typename val_type,
-          idx_type dim,
-          idx_type xdim, idx_type vdim>
+          idx_type dim>
 class FluxBalanceCoordSpace {
 
   typedef thrust::tuple<val_type,val_type> TwoValTuple;
@@ -38,8 +37,10 @@ class FluxBalanceCoordSpace {
   thrust::device_vector<val_type> flux;
 
 public:
-  template <typename Parameters>
-  FluxBalanceCoordSpace(Parameters *p, val_type dt) :
+  template <typename Parameters,typename ParallelCommunicator>
+  FluxBalanceCoordSpace(Parameters *p, 
+                        ParallelCommunicator *para,
+                        val_type dt, int xdim, int vdim) :
   n_bd(p->n_ghost[xdim]), nx(p->n[xdim]), 
   n_chunk(p->n_1d_per_dev/p->n_all_local[vdim]),
   nv(p->n_all_local[vdim]), n_all(p->n_1d_per_dev), dx(p->interval[xdim]) {

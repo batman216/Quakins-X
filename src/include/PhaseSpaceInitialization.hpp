@@ -70,9 +70,8 @@ class PhaseSpaceInitialization {
 
 public:
   PhaseSpaceInitialization(Parameters* p) 
-  : p(p) {
-    shape = new ShapeFunctor(p);
-  }
+  : p(p) { shape = new ShapeFunctor(p);  }
+
 
   template <typename itor_type, typename ExecutionPolicy>
   __host__ 

@@ -13,8 +13,7 @@ namespace details {
 
 template <typename idx_type,
           typename val_type,
-          idx_type dim,
-          idx_type xdim, idx_type vdim>
+          idx_type dim>
 class WignerTerm {
 
   cufftHandle plan_fwd, plan_bwd;
@@ -28,8 +27,10 @@ class WignerTerm {
   thrust::device_vector<val_type> lam1_normed,lam2_normed;
 
 public:
-  template <typename Parameters>
-  WignerTerm(Parameters *p, val_type dt) :
+  template <typename Parameters,typename ParallelCommunicator>
+  WignerTerm(Parameters *p, 
+             ParallelCommunicator *para,
+             val_type dt, int xdim, int ydim) :
   nv1(p->n[0]), nv2(p->n[1]),L1(p->length[2]),L2(p->length[3]),
   nx1(p->n_all[2]), nx2(p->n_all[3]), nx2loc(p->n_all[3]/p->n_dev),
   dx1(p->interval[2]), dx2(p->interval[3]), dt(dt),
@@ -68,6 +69,7 @@ public:
   template <typename itor_type, typename vitor_type>
   void advance(itor_type itor_begin, itor_type itor_end, 
                vitor_type v_begin, int gpu) {
+
     // Allocate CUDA array in device memory
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<val_type>();
     // cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
@@ -107,31 +109,6 @@ public:
                     thrust::raw_pointer_cast(&(*itor_begin)));
 
     val_type time_step = this->dt;
-    /*
-    std::ofstream kkk("phi.qout",std::ios::out);
-    thrust::copy(v_begin,v_begin+n1*n2,std::ostream_iterator<val_type>(kkk," "));
-    kkk.close();
-
-    thrust::device_vector<val_type> v_begin_int(n1*n2);
-    thrust::transform(thrust::make_counting_iterator(0),
-                      thrust::make_counting_iterator(n1*n2),
-                      v_begin_int.begin(),
-                      [n1,n2,d1,d2,texObj]__host__ __device__(int idx) {
-                         int i = idx%n1, j = idx/n1;
-                         return tex2D<val_type>(texObj,i*d1+0.2,j*d2);
-                      });
-
-    std::ofstream kkkk("phi_int.qout",std::ios::out);
-    thrust::copy(v_begin_int.begin(),v_begin_int.end(),std::ostream_iterator<val_type>(kkkk," "));
-    kkkk.close();
-*/
-    std::ofstream kkk("phi.qout",std::ios::out);
-    thrust::copy(v_begin,v_begin+n1*n2,std::ostream_iterator<val_type>(kkk," "));
-    kkk.close();
-    std::ofstream kkkk("phi_int.qout",std::ios::out);
-    
-
-
 
     int jstart = gpu*nx2loc, i, I;
     for (int j1=nx2bd+jstart; j1<jstart+nx2loc-nx2bd; j1++) {
@@ -142,11 +119,7 @@ public:
   
         X1 = static_cast<val_type>(I%n1+.5) /n1;  
         X2 = static_cast<val_type>(I/n1+.5) /n2;  
-/*
-        thrust::for_each(v_begin+I,v_begin+1+I,[I,texObj,X1,X2]__host__ __device__(val_type val) {
-                          printf("%.14f, %.14f\n",val,tex2D<val_type>(texObj,X1,X2));
-                        });
-                        */
+
         thrust::transform(thrust::device,
                           lam1_normed.begin(), lam1_normed.end(), 
                           lam2_normed.begin(), phase.begin(),

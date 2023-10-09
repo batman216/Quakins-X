@@ -133,8 +133,7 @@ struct EfieldSolver {
 
 template <typename idx_type,
           typename val_type,
-          idx_type dim,
-          idx_type xdim, idx_type vdim>
+          idx_type dim>
 class FourierSpectrumVeloSpace {
 
   cufftHandle plan_fwd, plan_bwd;
@@ -144,28 +143,41 @@ class FourierSpectrumVeloSpace {
 
   val_type dl1, dl2, dt;
 
-  thrust::device_vector<val_type> Ex, Ey, lam1, lam2, phase;
+  thrust::device_vector<val_type> r, Ex, Ey, lam1, lam2, phase;
   std::ofstream Eout;
+  
+  int gpu, gpu_size;
 
 public:
-  template <typename Parameters>
-  FourierSpectrumVeloSpace(Parameters *p, val_type dt) :
+  template <typename Parameters,typename ParallelCommunicator>
+  FourierSpectrumVeloSpace(Parameters *p, 
+                           ParallelCommunicator *para,
+                           val_type dt,int xdim, int vdim) :
   nv1(p->n[0]), nv2(p->n[1]),
   nx1(p->n_all[2]), nx2(p->n_all[3]), nx2loc(p->n_all[3]/p->n_dev),
   dx1(p->interval[2]), dx2(p->interval[3]), dt(dt),
   dv1(p->interval[0]), dv2(p->interval[1]), 
   nx1bd(p->n_ghost[2]), nx2bd(p->n_ghost[3]) {
 
-    Eout.open("testE.qout",std::ios::out);
     dl1 = 2.*M_PI/(nv1-2)/p->interval[0]; 
     dl2 = 2.*M_PI/(nv2)/p->interval[1]; 
-    
-    Ex.resize((nx1-2*nx1bd)*(nx2-12*nx2bd));    
-    Ey.resize((nx1-2*nx1bd)*(nx2-12*nx2bd));
+   
+    int nx1nobd = nx1-2*nx1bd;
+    int nx2nobd = nx2-12*nx2bd;
+    Ex.resize(nx1nobd*nx2nobd);    
+    Ey.resize(nx1nobd*nx2nobd);
+    r.resize(nx1nobd*nx2nobd);
 
     lam1.resize(nv1*nv2/2); lam2.resize(nv1*nv2/2);
     phase.resize(nv1*nv2/2);
-
+#ifdef CYLIND
+    
+    for (int j=0; j<nx2nobd; j++) {
+      for (int i=0; i<nx1nobd; i++) {
+        r[j*nx1nobd+i] = i*dx1 + .5*dx1;
+      }
+    }
+#endif
     for (int j=0; j<=nv2/2; j++) {
       for (int i=0; i<nv1/2; i++) {
         lam1[j*nv1/2+i] = i*dl1;
@@ -179,22 +191,26 @@ public:
       }
     }
 
+    this->gpu = para->mpi_rank;
+    this->gpu_size = para->mpi_size;
   }
 
   template <typename itor_type, typename vitor_type>
   void advance(itor_type itor_begin, itor_type itor_end, 
-               vitor_type v_begin, int gpu) {
+               vitor_type v_begin) {
 
-    EfieldSolver<idx_type,val_type,2> solveEfield({nx1-2*nx1bd,nx2-12*nx2bd},{2,2},{dx1,dx2});
-    solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-12*nx2bd),v_begin,
+    EfieldSolver<idx_type,val_type,2> 
+      solveEfield({nx1-2*nx1bd,nx2-2*gpu_size*nx2bd},{2,2},{dx1,dx2});
+    solveEfield(v_begin,v_begin+(nx1-2*nx1bd)*(nx2-2*gpu_size*nx2bd),v_begin,
                 std::array<itor_type,2>{Ex.begin(),Ey.begin()});
-    
-    if (gpu==5) {
-    thrust::copy(Ex.begin(),Ex.end(),std::ostream_iterator<val_type>(Eout," "));
-    Eout << std::endl;
-    thrust::copy(Ey.begin(),Ey.end(),std::ostream_iterator<val_type>(Eout," "));
-    Eout << std::endl;
-    }
+
+#ifdef CYLIND
+  
+    thrust::transform(r.begin(),r.end(),Ex.begin(),Ex.begin(),
+                      []__host__ __device__(val_type r,val_type F) 
+                      {  return 0*F - 1.0/r; });
+#endif
+
     auto comp_ptr = reinterpret_cast<cufftComplex*>(
                     thrust::raw_pointer_cast(&(*itor_begin)));
 
