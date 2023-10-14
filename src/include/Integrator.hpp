@@ -28,7 +28,6 @@ struct Integrator {
     coeff((b-a)/3./static_cast<val_type>(n)) {}
 
   template <typename itor_type>
-  __host__
   void operator()(itor_type in_begin, itor_type out_begin) {
 
     val_type C = this->coeff;

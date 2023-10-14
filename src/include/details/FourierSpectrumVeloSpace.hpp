@@ -59,29 +59,7 @@ struct EfieldSolver {
                       });
 
     val_type Cb = 0.5/interval[0];
-  /*
-    thrust::host_vector<val_type> _cof0_l(3);
-    _cof0_l[0] = Cb*3.; _cof0_l[1] = -4.*Cb; _cof0_l[2] = Cb;
-    thrust::host_vector<val_type> _cof0_r(3);
-    _cof0_r[0] = -Cb; _cof0_r[1] = 4.*Cb; _cof0_r[2] = -3.*Cb;
 
-    // r boundary
-    thrust::device_vector<val_type> cof0_l = _cof0_l;
-    thrust::device_vector<val_type> cof0_r = _cof0_r;
-    for (int i=0; i<ntot; i+=n[0]) {
-      
-      E_begin[0][i]  = thrust::inner_product(thrust::device,
-                                             cof0_l.begin(), cof0_l.end(), phi_begin+i,0);
-      E_begin[0][i+1]= thrust::inner_product(thrust::device,
-                                             cof0_l.begin(), cof0_l.end(), phi_begin+i+1,0);
-    } // left
-    for (int i=n[0]-2; i<ntot; i+=n[0]) {
-      E_begin[0][i]  = thrust::inner_product(thrust::device,
-                                             cof0_r.begin(), cof0_r.end(), phi_begin+i-2,0);
-      E_begin[0][i+1]= thrust::inner_product(thrust::device,
-                                             cof0_r.begin(), cof0_r.end(), phi_begin+i-1,0);
-    } // right
-*/
     int idx1,idx2,idx3,idx4;
     for (int i=0; i<n[1]; i++) {
       idx1 = i*n[0];
@@ -131,6 +109,8 @@ struct EfieldSolver {
 
 };
 
+
+
 template <typename idx_type,
           typename val_type,
           idx_type dim>
@@ -159,11 +139,14 @@ public:
   dv1(p->interval[0]), dv2(p->interval[1]), 
   nx1bd(p->n_ghost[2]), nx2bd(p->n_ghost[3]) {
 
+    this->gpu = para->mpi_rank;
+    this->gpu_size = para->mpi_size;
+
     dl1 = 2.*M_PI/(nv1-2)/p->interval[0]; 
     dl2 = 2.*M_PI/(nv2)/p->interval[1]; 
    
     int nx1nobd = nx1-2*nx1bd;
-    int nx2nobd = nx2-12*nx2bd;
+    int nx2nobd = nx2-gpu_size*2*nx2bd;
     Ex.resize(nx1nobd*nx2nobd);    
     Ey.resize(nx1nobd*nx2nobd);
     r.resize(nx1nobd*nx2nobd);
@@ -190,9 +173,6 @@ public:
         lam2[j*nv1/2+i] = (j-static_cast<int>(nv2))*dl2;
       }
     }
-
-    this->gpu = para->mpi_rank;
-    this->gpu_size = para->mpi_size;
   }
 
   template <typename itor_type, typename vitor_type>

@@ -24,7 +24,7 @@ using Nums = std::size_t;
 using Real = float;
 
 
-constexpr Nums dim = 4;
+#define dim 4
 
 #define MCW MPI_COMM_WORLD
 
@@ -193,11 +193,11 @@ int main(int argc, char* argv[]) {
     push_watch.tick("--> step[" +std::to_string(step)+ "] pushing..."); //--------
 
     copy1(f_e.begin(), f_e.end(),f_e_buff.begin()); // n_now = {nx2l,nx1,nv1,nv2}
-    fsSolverX2(f_e_buff.begin(), f_e_buff.end(),thrust::make_discard_iterator(), id);
+    fsSolverX2(f_e_buff.begin(), f_e_buff.end(),thrust::make_discard_iterator());
     copy2(f_e_buff.begin(),f_e_buff.end(),f_e.begin()); // n_now = {nx1,nx2l,nv2,nv1}
 
     boundX1(f_e.begin(),f_e.end(),flag);
-    fsSolverX1(f_e.begin(), f_e.end(), thrust::make_discard_iterator(), id);
+    fsSolverX1(f_e.begin(), f_e.end(), thrust::make_discard_iterator());
     copy3(f_e.begin(),f_e.end(),f_e_buff.begin()); // n_now = {nv1,nv2,nx1,nx2l}
 
     thrust::copy(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
@@ -250,13 +250,13 @@ int main(int argc, char* argv[]) {
     // velocity direction push  
     fft.forward(f_e.begin(),f_e.end(),f_e_buff.begin());
 #ifdef QUANTUM
-    wignerSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+    wignerSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin());
 #elif CLASSIC
-    vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin(),id);
+    vSolver(f_e_buff.begin(), f_e_buff.end(), pote_all.begin());
 #endif
     fft.backward(f_e_buff.begin(),f_e_buff.end(),f_e.begin());
 
-    if (step%10==0) system(p->runtime_commands["copytoc"].command.c_str());
+    if (step%10==0 && mpi_rank==0) system(p->runtime_commands["copytoc"].command.c_str());
 
     t += p->dt;
   }

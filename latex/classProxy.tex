@@ -1,0 +1,72 @@
+\hypertarget{classProxy}{}\doxysection{Proxy$<$ t\+\_\+\+Product $>$ Class Template Reference}
+\label{classProxy}\index{Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}}
+
+
+forward declaration  
+
+
+
+
+{\ttfamily \#include $<$util.\+hpp$>$}
+
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{classProxy_ae78d7aba5c3d40e1a82187ac98ae22ac}\label{classProxy_ae78d7aba5c3d40e1a82187ac98ae22ac}} 
+void {\bfseries register\+Product} (\mbox{\hyperlink{classFactory}{Factory}}$<$ t\+\_\+\+Product $>$ $\ast$reg, std\+::string p\+\_\+name)
+\item 
+t\+\_\+\+Product $\ast$ \mbox{\hyperlink{classProxy_a4b9d38d7738b9fddb5ccddd49fdeef54}{get}} (std\+::string p\+\_\+name)
+\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{classProxy}{Proxy}}$<$ t\+\_\+\+Product $>$ \& \mbox{\hyperlink{classProxy_aeaad1e9b3aea2575059247bfe9e21f47}{Instance}} ()
+\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+std\+::map$<$ std\+::string, \mbox{\hyperlink{classFactory}{Factory}}$<$ t\+\_\+\+Product $>$ $\ast$ $>$ \mbox{\hyperlink{classProxy_aaeac52a8781a56759be0c1f0abc0b07d}{regedit}}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\subsubsection*{template$<$typename t\+\_\+\+Product$>$\newline
+class Proxy$<$ t\+\_\+\+Product $>$}
+
+forward declaration 
+
+The class \mbox{\hyperlink{classProxy}{Proxy}} is like a flyweight factory 
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classProxy_a4b9d38d7738b9fddb5ccddd49fdeef54}\label{classProxy_a4b9d38d7738b9fddb5ccddd49fdeef54}} 
+\index{Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}!get@{get}}
+\index{get@{get}!Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}}
+\doxysubsubsection{\texorpdfstring{get()}{get()}}
+{\footnotesize\ttfamily template$<$typename t\+\_\+\+Product $>$ \\
+t\+\_\+\+Product$\ast$ \mbox{\hyperlink{classProxy}{Proxy}}$<$ t\+\_\+\+Product $>$\+::get (\begin{DoxyParamCaption}\item[{std\+::string}]{p\+\_\+name }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+flyweight singleton
+
+produce ~\newline
+\mbox{\Hypertarget{classProxy_aeaad1e9b3aea2575059247bfe9e21f47}\label{classProxy_aeaad1e9b3aea2575059247bfe9e21f47}} 
+\index{Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}!Instance@{Instance}}
+\index{Instance@{Instance}!Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}}
+\doxysubsubsection{\texorpdfstring{Instance()}{Instance()}}
+{\footnotesize\ttfamily template$<$typename t\+\_\+\+Product $>$ \\
+static \mbox{\hyperlink{classProxy}{Proxy}}$<$t\+\_\+\+Product$>$\& \mbox{\hyperlink{classProxy}{Proxy}}$<$ t\+\_\+\+Product $>$\+::Instance (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+Meyers Singleton\+: create an instance only when this function is called.
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{classProxy_aaeac52a8781a56759be0c1f0abc0b07d}\label{classProxy_aaeac52a8781a56759be0c1f0abc0b07d}} 
+\index{Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}!regedit@{regedit}}
+\index{regedit@{regedit}!Proxy$<$ t\_Product $>$@{Proxy$<$ t\_Product $>$}}
+\doxysubsubsection{\texorpdfstring{regedit}{regedit}}
+{\footnotesize\ttfamily template$<$typename t\+\_\+\+Product $>$ \\
+std\+::map$<$std\+::string, \mbox{\hyperlink{classFactory}{Factory}}$<$t\+\_\+\+Product$>$$\ast$$>$ \mbox{\hyperlink{classProxy}{Proxy}}$<$ t\+\_\+\+Product $>$\+::regedit}
+
+The client fetch/purchase concrete product by p\+\_\+name according to the regedit 
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+src/include/util.\+hpp\end{DoxyCompactItemize}

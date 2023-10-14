@@ -4,27 +4,27 @@
 
 @ time --------------------------------*
 
-step_total        = 6000
-dt                = 0.05
+step_total        = 1
+dt                = 0.025
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1               =  180
-nx2               =  360
-nv1               =  180
-nv2               =  180
+nx1               =  300
+nx2               =  50
+nv1               =  300
+nv2               =  50
 
-nx1_ghost         =  5
+nx1_ghost         =  10
 nx2_ghost         =  5
-nv1_ghost         =  0
+nv1_ghost         =  10
 nv2_ghost         =  0
 
 x1min             =  0
-x1max             =  40
+x1max             =  20
 x2min             =  0
-x2max             =  80
+x2max             =  50
 v1min             = -4
 v1max             =  4
 v2min             = -4
@@ -34,7 +34,7 @@ v2max             =  4
 
 @ runtime -----------------------------*
 
-copytoc           = 0,10,echo 'haha'
+copytoc           = 0,10,echo 'cp run/dens_e@0.qout run/potential@0.qout /mnt/c/data_process/'
 
 @ runtime -----------------------------*
 
@@ -78,7 +78,7 @@ y_bump_shift      =  1,-1
 @ Quantum -----------------------------*
 
 hbar              =  1.0
-Theta             =  0.1
+degeneracy        =  0.1
 
 @ Quantum -----------------------------*
 
@@ -100,3 +100,6 @@ Z                 =  1
 vp                =  1
 
 @ test particle -----------------------*
+
+================================================== the end 
+

@@ -7,7 +7,7 @@
 #include "macros.hpp"
 
 
-template <typename idx_type, typename val_type, idx_type dim>
+template <typename idx_type, typename val_type, int dim>
 struct Parameters {
 
   idx_type n_dev;
@@ -42,6 +42,8 @@ struct Parameters {
   // characteristic velocties
   val_type v1, v2, v3, v4;
 
+  // normalize Planck's constant
+  val_type hbar,Theta;
 
   idx_type dens_print_intv;
 
@@ -53,7 +55,7 @@ struct Parameters {
 namespace quakins {
 
 
-template<typename idx_type, typename val_type, idx_type dim>
+template<typename idx_type, typename val_type, int dim>
 void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
   
   std::ifstream input_file(INPUT_FILE);
@@ -65,7 +67,6 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
   input_file.close();
   input_file.open(INPUT_FILE);
   auto t_map = readBox(input_file, "time");
-  
   int temp; // todo: this is not very elegant.
   cudaGetDeviceCount(&temp);
   p->n_dev = static_cast<idx_type>(temp);
@@ -131,6 +132,14 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
   std::size_t mem_size = p->n_1d_all*sizeof(val_type)/1048576; 
   cudaDeviceSetLimit(cudaLimitMallocHeapSize, mem_size/p->n_dev*2.2);
 
+  input_file.close();
+  input_file.open(INPUT_FILE);
+
+  auto quantum_map = readBox(input_file, "Quantum");
+  assign(p->hbar, "hbar", quantum_map);
+  assign(p->Theta, "Theta", quantum_map);
+  
+  input_file.close();
 
   if (mpi_rank==0) {
     std::cout << "Maxium of your int type: " 
@@ -159,7 +168,7 @@ void init(Parameters<idx_type,val_type, dim>* p, int mpi_rank) {
 
 }
 
-template<typename idx_type, typename val_type, idx_type dim>
+template<typename idx_type, typename val_type, int dim>
 void init(Parameters<idx_type,val_type, dim>* p) { init(p,0); }
 
 

@@ -1,3 +1,10 @@
+/**
+ * @file    PhaseSpaceInitialization.hpp
+ * @author  Tian-Xing Hu 
+ * @date    2023.10.13
+ * @brief   
+ */
+
 #ifndef _PHASE_SPACE_INITIALIZATION_HPP_
 #define _PHASE_SPACE_INITIALIZATION_HPP_
 
@@ -9,32 +16,32 @@
 #include <thrust/reduce.h>
 #include <thrust/scatter.h>
 
-#include "details/initial_shapes.hpp"
+#include "initial_shapes.hpp"
 
-template <typename idx_type, 
-          typename val_type, 
-          idx_type dim, typename ShapeFunctor>
+namespace quakins {
+
+template <typename idx_type, typename val_type, int dim_x, int dim_v>
+struct Parameters;
+
+template <typename idx_type, typename val_type, 
+          int dim, typename ShapeFunctor>
 struct Idx2Value {
 
-  typedef Parameters<idx_type,val_type,dim> Parameters;
-
-  typedef std::array<idx_type,dim> idx_array;
-  typedef std::array<val_type,dim> val_array;
-
-  idx_array n_dim, n_bd;
-  val_array low_bound, h;
+  using idx_XV_t = std::array<idx_type,dim>;
+  using val_XV_t = std::array<val_type,dim>;
+   
+  idx_XV_t n_dim, n_bd;
+  val_XV_t low_bound, h;
   
-  ShapeFunctor *shape;
-
   __host__ __device__ 
-  Idx2Value(idx_array n_dim, idx_array n_bd, 
-            val_array lb, val_array h, ShapeFunctor *shape)
-   : n_dim(n_dim),low_bound(lb),h(h), n_bd(n_bd), shape(shape) {}
+  Idx2Value(idx_XV_t n_dim, idx_XV_t n_bd, 
+            val_XV_t lb, val_XV_t h)
+   : n_dim(n_dim),low_bound(lb), h(h), n_bd(n_bd) {}
 
   __host__ __device__ 
   val_type operator()(const idx_type& idx) {
 
-    idx_array idx_m;
+    idx_XV_t idx_m;
     for (int i=0; i<dim; i++) {
       
       idx_type imod = 1;
@@ -43,48 +50,67 @@ struct Idx2Value {
       idx_m[i] = (idx % imod) * n_dim[i] / imod;
 
     }
-    val_array z;
+    val_XV_t z;
     for (int i=0; i<dim; i++) 
       z[i] = low_bound[i]+.5*h[i]+h[i]*(idx_m[i]-n_bd[i]);
 
-    return shape->write(z);  
+    return ShapeFunctor::shape(z);  
 
   }
 
 };
 
-namespace quakins {
-
-
-template <typename idx_type, 
-          typename val_type, 
-          idx_type dim, 
-          template<typename W,typename,W,typename> typename ShapeFunctorTemplate>
+template <typename idx_type, typename val_type, 
+          int dim_x, int dim_v, 
+          template<typename,int> typename ShapeFunctor>
 class PhaseSpaceInitialization {
 
-  typedef Parameters<idx_type,val_type,dim> Parameters;
-  typedef ShapeFunctorTemplate<idx_type,val_type,dim,Parameters> ShapeFunctor;
-
-  Parameters *p;
-  ShapeFunctor *shape;
+  typedef Parameters<idx_type,val_type,dim_x,dim_v> Pmts;
+  Pmts *p;
 
 public:
-  PhaseSpaceInitialization(Parameters* p) 
-  : p(p) { shape = new ShapeFunctor(p);  }
+  PhaseSpaceInitialization(Pmts *p) :p(p) {} 
 
 
-  template <typename itor_type, typename ExecutionPolicy>
-  __host__ 
-  void operator()(const ExecutionPolicy & exec,
-                  itor_type itor_begin, idx_type num, idx_type id) {
+  template <typename Container>
+  void operator()(Container& storge) {
 
-    idx_type n_shift = id*p->n_1d_per_dev - id*2*p->n_ghost[dim-1]
-                       *p->n_1d_per_dev/p->n_all_local[dim-1];
-    thrust::transform(exec, 
-                      thrust::make_counting_iterator(n_shift),
-                      thrust::make_counting_iterator(num+n_shift), 
-                      itor_begin,
-                      Idx2Value(p->n_all,p->n_ghost, p->low_bound,p->interval, shape));
+    using idx_XV_t = std::array<idx_type,dim_x+dim_v>;
+    using val_XV_t = std::array<val_type,dim_x+dim_v>;
+   
+
+    idx_XV_t num,num_ghost;
+    val_XV_t low_bound, interval;
+
+    for (int i=0; i<dim_v; ++i) {
+      num[i] = p->n_all_v_loc[i];
+      num_ghost[i] = p->n_ghost_v[i];
+      low_bound[i] = p->vmin[i];
+      interval[i]  = p->dv[i];
+    }
+
+    for (int i=dim_v; i<dim_x+dim_v; ++i) {
+      num[i] = p->n_all_x_loc[i-dim_v];
+      num_ghost[i] = p->n_ghost_x[i-dim_v];
+      low_bound[i] = p->xmin[i-dim_v];
+      interval[i]  = p->dx[i-dim_v];
+    }
+
+    for (int i=0; i<dim_v+dim_x; ++i) {
+      
+      std::cout << num[i] << " " << num_ghost[i] << " "
+                << low_bound[i] << " " << interval[i] << std::endl;
+
+    }
+    idx_type n_shift = p->mpi_rank * p->n_main_x_loc[dim_x]; 
+    
+    storge.resize(p->n_whole_loc);
+    thrust::transform(thrust::make_counting_iterator(n_shift),
+                      thrust::make_counting_iterator(p->n_whole_loc+n_shift), 
+                      storge.begin(),
+                      Idx2Value<idx_type,val_type,dim_x+dim_v,
+                                ShapeFunctor<val_type,dim_x+dim_v>>
+                                (num, num_ghost, low_bound, interval));
     // the template parameters are automatically deduced via the constructor
     
     // Idx2Value calculate the value of distribution function from 1d index,

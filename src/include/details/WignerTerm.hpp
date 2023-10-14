@@ -13,19 +13,29 @@ namespace details {
 
 template <typename idx_type,
           typename val_type,
-          idx_type dim>
-class WignerTerm {
+          int dim>
+class WignerTerm;
+
+
+template <typename idx_type, typename val_type>
+class WignerTerm<idx_type,val_type,1>{
+  
+};
+
+template <typename idx_type, typename val_type>
+class WignerTerm<idx_type,val_type,4>{
 
   cufftHandle plan_fwd, plan_bwd;
 
   const idx_type nx1,nx2, nx2loc, nv1, nv2, nx1bd, nx2bd;
   const val_type dv1, dv2, dx1, dx2;
 
-  val_type dl1, dl2, dt, L1,L2;
+  val_type dl1, dl2, dt, L1,L2, Q;
 
   thrust::device_vector<val_type> lam1,lam2, phase;
   thrust::device_vector<val_type> lam1_normed,lam2_normed;
 
+  int gpu, gpu_size;
 public:
   template <typename Parameters,typename ParallelCommunicator>
   WignerTerm(Parameters *p, 
@@ -35,7 +45,11 @@ public:
   nx1(p->n_all[2]), nx2(p->n_all[3]), nx2loc(p->n_all[3]/p->n_dev),
   dx1(p->interval[2]), dx2(p->interval[3]), dt(dt),
   dv1(p->interval[0]), dv2(p->interval[1]), 
-  nx1bd(p->n_ghost[2]), nx2bd(p->n_ghost[3]) {
+  nx1bd(p->n_ghost[2]), nx2bd(p->n_ghost[3]), Q(p->hbar) {
+
+    this->gpu = para->mpi_rank;
+    this->gpu_size = para->mpi_size;
+
 
     dl1 = 2.*M_PI/(nv1-2)/p->interval[0]; 
     dl2 = 2.*M_PI/(nv2)/p->interval[1]; 
@@ -68,13 +82,14 @@ public:
 
   template <typename itor_type, typename vitor_type>
   void advance(itor_type itor_begin, itor_type itor_end, 
-               vitor_type v_begin, int gpu) {
+               vitor_type v_begin) {
 
     // Allocate CUDA array in device memory
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<val_type>();
     // cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
     cudaArray_t phi_as_texture;
-    int n1 = nx1-2*nx1bd, n2 = nx2 - 12*nx2bd;
+
+    int n1 = nx1-2*nx1bd, n2 = nx2 - 2*gpu_size*nx2bd;
 
     cudaMallocArray(&phi_as_texture, &channelDesc, n1, n2);
 
@@ -103,7 +118,7 @@ public:
     cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
     val_type X1, X2;
       
-    val_type Q = 8, LL1 = L1, LL2 = L2;
+    val_type QQ = Q, LL1 = L1, LL2 = L2;
     
     auto comp_ptr = reinterpret_cast<cufftComplex*>(
                     thrust::raw_pointer_cast(&(*itor_begin)));
@@ -123,11 +138,11 @@ public:
         thrust::transform(thrust::device,
                           lam1_normed.begin(), lam1_normed.end(), 
                           lam2_normed.begin(), phase.begin(),
-                          [time_step,Q,X1,X2,texObj] __host__ __device__
+                          [time_step,QQ,X1,X2,texObj] __host__ __device__
                           (const val_type ll1, const val_type ll2) {
-                            return -time_step/Q*
-                            (tex2D<val_type>(texObj, X1+.5*Q*ll1,X2+.5*Q*ll2)
-                            -tex2D<val_type>(texObj, X1-.5*Q*ll1,X2-.5*Q*ll2));
+                            return -time_step/QQ*
+                            (tex2D<val_type>(texObj, X1+.5*QQ*ll1,X2+.5*QQ*ll2)
+                            -tex2D<val_type>(texObj, X1-.5*QQ*ll1,X2-.5*QQ*ll2));
                           });
         
         

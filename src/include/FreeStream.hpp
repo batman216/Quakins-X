@@ -6,13 +6,11 @@
 #include "details/FourierSpectrumVeloSpace.hpp"
 #include "details/WignerTerm.hpp"
 
-template <typename idx_type, typename val_type, idx_type dim>
-struct Parameters;
 
 namespace quakins {
 
-template <typename idx_type,typename val_type, idx_type dim, 
-          template<typename,typename,idx_type> typename Policy>
+template <typename idx_type,typename val_type, int dim, 
+          template<typename,typename,int> typename Policy>
 class FreeStream {
 
   typedef Policy<idx_type,val_type,dim> Algorithm; 
@@ -32,9 +30,9 @@ public:
 
   template <typename itor_type, typename vitor_type>
   void operator()(itor_type itor_begin, itor_type itor_end, 
-                  vitor_type v_begin, int gpu) {
+                  vitor_type v_begin) {
     
-    policy->advance(itor_begin, itor_end, v_begin, gpu);
+    policy->advance(itor_begin, itor_end, v_begin);
   }
 
 };

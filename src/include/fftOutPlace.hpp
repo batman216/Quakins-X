@@ -32,20 +32,20 @@ class FFT<idx_type,val_type,1> {
   cufftHandle plan_fwd, plan_bwd;
   val_type norm;
 
-
 public:
   FFT(idx_type n, idx_type n_batch) {
-/*
-      CUFFT_CALL(
-      cufftPlanMany(&plan_fwd, 1, n, rnembed, 1, rdist,
-                                     cnembed, 1, cdist,
-                                     CUFFT_R2C, n_batch));
-      CUFFT_CALL(
-      cufftPlanMany(&plan_bwd, 1, n, cnembed, 1, cdist,
-                                     rnembed, 1, rdist,
-                                     CUFFT_C2R, n_batch));
-      norm = static_cast<val_type>(n);
-      */
+   
+    int nn[1] = {n};
+    CUFFT_CALL(
+    cufftPlanMany(&plan_fwd, 1, nn, nn, n_batch, 1,
+                                    nn, 1, n,
+                                    CUFFT_R2C, n_batch));
+    CUFFT_CALL(
+    cufftPlanMany(&plan_bwd, 1, nn, nn, 1, n,
+                                    nn, n_batch, 1,
+                                    CUFFT_C2R, n_batch));
+    norm = static_cast<val_type>(n);
+      
   }
 
   ~FFT() {}

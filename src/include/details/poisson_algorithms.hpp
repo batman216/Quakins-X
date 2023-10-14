@@ -4,6 +4,8 @@
 #include <cusolverSp.h>
 #include <fftw3.h>
 #include <Eigen/SparseLU>
+#include <thrust/copy.h>
+#include <thrust/adjacent_difference.h>
 
 template<typename T>
 struct cufftValTraits;
@@ -287,74 +289,138 @@ public:
 };
 
 
-template<typename idx_type, typename val_type, idx_type dim>
-class FFT1D {
-  
-  // FFTW
-  fftw_plan plan_fwd, plan_inv;
-  int fft_size, real_size,comp_size, nx, nxh;
 
-  std::complex<double> *pk;
-  double *px;
+template<typename idx_type, typename val_type, int dim>
+class Derivative;
  
-  std::vector<double> inverse_k_square;
+template<typename idx_type, typename val_type>
+class Derivative<idx_type,val_type,1> {
+
+  idx_type n; val_type dx;
+
+  typedef thrust::tuple<
+          val_type,val_type,val_type,val_type> FourTuple;
+public:
+  Derivative(idx_type n, val_type dx) 
+  : n(n), dx(dx) {}
+
+  template <typename itor_type1, typename itor_type2>
+  void operator()(itor_type1 f_begin, itor_type1 f_end, itor_type2 fprime_begin) {
+
+    // left boundary
+    fprime_begin[0] = (-3*f_begin[0]+4*f_begin[1]-f_begin[2])/2./dx;
+    fprime_begin[1] = (-3*f_begin[1]+4*f_begin[2]-f_begin[3])/2./dx;
+
+    // right boundary
+    fprime_begin[n-1] = (3*f_begin[n-1]-4*f_begin[n-2]+f_begin[n-3])/2./dx;
+    fprime_begin[n-2] = (3*f_begin[n-2]-4*f_begin[n-3]+f_begin[n-4])/2./dx;
+
+    using thrust::make_zip_iterator;
+    using thrust::make_tuple;
+
+    auto zitor = make_zip_iterator(make_tuple(f_begin-2,f_begin-1,
+                                              f_begin+1,f_begin+2));
+    
+    val_type c = 1.0/12.0/dx;
+    thrust::transform(zitor+2,zitor-2+n,fprime_begin+2,[c]__host__ __device__
+                      (FourTuple t){
+                        return ( thrust::get<0>(t) - 8.0*thrust::get<1>(t)
+                                -thrust::get<3>(t) + 8.0*thrust::get<2>(t))*c;
+                      });
+
+  }
+};
+ 
+
+
+
+template<typename idx_type, typename val_type, int dim>
+class FFT;
+  
+
+template<typename idx_type, typename val_type>
+class FFT<idx_type,val_type,1> {
+  
+  // cufft
+  cufftHandle plan_fwd, plan_inv;
+  int fft_size, real_size,comp_size, nx, nxh;
+  val_type dx;
+
+  thrust::device_vector<cufftReal> fx;
+  thrust::device_vector<cufftComplex> fk;
+  thrust::device_vector<val_type> inverse_k_square;
 
 public:
-  FFT1D(std::array<idx_type,dim> n_dim,
-      std::array<val_type,2*dim> bound) {
+  FFT(std::array<idx_type,1> n_dim,
+      std::array<val_type,1> lef_bd,
+      std::array<val_type,1> rig_bd) { 
  
-    nx = static_cast<int>(n_dim[0]);
+    nx = n_dim[0];
     nxh = nx/2+1;
 
-    val_type xmin = bound[0];
-    val_type xmax = bound[1];
+    val_type xmin = lef_bd[0];
+    val_type xmax = rig_bd[0];
+    dx = (xmax-xmin)/nx;
 
     val_type dkx = 2.*M_PI/(xmax-xmin);
 
     inverse_k_square.resize(nxh);
 
-    inverse_k_square[0] = 0;
+    fx.resize(nx); fk.resize(nxh);
 
-    val_type kx_sq;
-    for (int j=1; j<nx; j++) {
-      kx_sq = j<=nx/2? std::pow(j*dkx,2)
-                     : std::pow((j-nx)*dkx,2);
-      inverse_k_square[j] = 1/kx_sq/kx_sq;
-    }
+    inverse_k_square[0] = 0;
+    for (int i=1; i<nxh; i++)
+      inverse_k_square[i] = 1/dkx/dkx/i/i;
 
     fft_size  = nx;
     real_size = nx;     
     comp_size = nxh;  
 
-    pk = new std::complex<double>[comp_size];
-    px = new double[real_size];
-
-    plan_fwd = fftw_plan_dft_r2c_1d(nx,px,reinterpret_cast<fftw_complex*>(pk),FFTW_MEASURE);
-    plan_inv = fftw_plan_dft_c2r_1d(nx,reinterpret_cast<fftw_complex*>(pk),px,FFTW_MEASURE);
+    cufftPlan1d(&plan_fwd, nx, CUFFT_R2C,1);
+    cufftPlan1d(&plan_inv, nx, CUFFT_C2R,1);
 
   }
 
-  template <typename itor_type> 
-  void solve(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+  template <typename Container> 
+  void solve(const Container& dens, Container& potn, Container& Efield) {
+
+    this->solve(dens,potn);
+
+    Derivative<idx_type,val_type,1> d(nx,dx);
+
+    d(potn.begin(),potn.end(),Efield.begin());
+    thrust::for_each(Efield.begin(),Efield.end(),
+                     []__host__ __device__(val_type& val){val=-val;});
+  }
+
+  template <typename Container> 
+  void solve(const Container& dens, Container& potn) {
+
+    thrust::copy(dens.begin(),dens.end(),fx.begin());
+
+    cufftExecR2C(plan_fwd,thrust::raw_pointer_cast(fx.data()),
+                          thrust::raw_pointer_cast(fk.data()));
+
+    int norm = fft_size;
+    thrust::transform(fk.begin(),fk.end(),inverse_k_square.begin(),
+                      fk.begin(), [norm]__host__ __device__(cufftComplex& fk, val_type& iks) {
+                        cufftComplex res;
+                        res.x = -fk.x*iks/norm;
+                        res.y = -fk.y*iks/norm;
+                        return res;
+                      });
  
-    std::copy(in_begin,in_end,px);
+    cufftExecC2R(plan_inv,thrust::raw_pointer_cast(fk.data()),
+                          thrust::raw_pointer_cast(fx.data()));
 
-    // substract ion
-    std::for_each(px,px+real_size, [](auto& val) { val-=1.0; });
-
-    fftw_execute(plan_fwd);
-
-    for (int i=0; i<comp_size; ++i) { pk[i] *= -inverse_k_square[i]/fft_size;  }
-    
-    fftw_execute(plan_inv);
-    std::copy(px,px+real_size,out_begin);
+    thrust::copy(fx.begin(),fx.end(),potn.begin());
       
   }
 
 };
 
-template<typename idx_type, typename val_type, idx_type dim>
-class FFT2D_Cart {
+template<typename idx_type, typename val_type>
+class FFT<idx_type,val_type,2> {
   
   // FFTW
   fftw_plan plan_fwd, plan_inv;
@@ -366,16 +432,17 @@ class FFT2D_Cart {
   std::vector<double> inverse_k_square;
 
 public:
-  FFT2D_Cart(std::array<idx_type,dim> n_dim,
-      std::array<val_type,2*dim> bound) {
+  FFT(std::array<idx_type,2> n_dim,
+      std::array<val_type,2> lef_bd,
+      std::array<val_type,2> rig_bd) {
  
     nx = static_cast<int>(n_dim[0]);
     nxh = nx/2+1;
     ny = static_cast<int>(n_dim[1]);
     nyh = ny/2+1;
 
-    val_type xmin = bound[0], ymin = bound[1];
-    val_type xmax = bound[2], ymax = bound[3];
+    val_type xmin = lef_bd[0], ymin = lef_bd[1];
+    val_type xmax = lef_bd[1], ymax = rig_bd[1];
 
     val_type dkx = 2.*M_PI/(xmax-xmin);
     val_type dky = 2.*M_PI/(ymax-ymin);

@@ -7,6 +7,7 @@ namespace quakins {
 template <typename idx_type, 
           template<typename> typename Policy>
 class Boundary {
+
   Policy<idx_type> *policy;
 
 public:
@@ -17,14 +18,14 @@ public:
   }
 
 
-  template<typename itor_type> __host__
+  template<typename itor_type> 
   void operator()(itor_type itor_begin, itor_type itor_end,char flag) {
 
     policy->implement(itor_begin,itor_end,flag);
   }
 
 
-};
+};          
 
 
 

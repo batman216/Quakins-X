@@ -99,7 +99,7 @@ struct PeriodicBoundary {
                    idx_type n_step, idx_type n_chunk)
   : nx(nx), n_bd(n_bd), n_chunk(n_chunk), n_step(n_step){}
 
-  template<typename itor_type> __host__
+  template<typename itor_type> 
   void implement(itor_type itor_begin, itor_type itor_end,char flag) {
 
     strided_chunk_range<itor_type> 
@@ -112,11 +112,9 @@ struct PeriodicBoundary {
     strided_chunk_range<itor_type> 
       right_inside(itor_begin+nx,itor_end-n_bd,nx+2*n_bd, n_bd);
 
-    thrust::copy(thrust::device,
-                 left_inside.begin(),left_inside.end(),
+    thrust::copy(left_inside.begin(),left_inside.end(),
                  right_bd.begin());
-    thrust::copy(thrust::device,
-                 right_inside.begin(),right_inside.end(),
+    thrust::copy(right_inside.begin(),right_inside.end(),
                  left_bd.begin());
   }
 
