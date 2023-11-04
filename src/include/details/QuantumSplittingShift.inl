@@ -3,9 +3,8 @@
 template <typename idx_type, typename val_type>
 struct Packet_quantum<idx_type,val_type,1> {
 
-  val_type hbar, dl, dt; 
-  idx_type nx, nv, dv, nvh, nxbd, nvbd, nchunk;
-  idx_type nxtot,nvtot;
+  val_type hbar, dt, Lv, Lx; 
+  idx_type nv, nvbd, nx, nxbd, n_chunk;
 
 };
 
@@ -14,60 +13,105 @@ struct Packet_quantum<idx_type,val_type,1> {
 template <typename idx_type, typename val_type>
 QuantumSplittingShift<idx_type,val_type,1>::QuantumSplittingShift(Packet p): p(p) {
 
-  p.dl = 2.0*M_PI/p.nv/p.dv;
-  p.nvh = p.nv/2;
-  this->lambda.resize(p.nvh); 
-  this->phase.resize(p.nvh);
+  val_type Dl  = 2.0*M_PI/p.Lv;
+  val_type nu4 = 5e-4;
+    
+  phase.resize(p.n_chunk/2+1);
+  hypercollision.resize(p.n_chunk/2+1);
 
-}
+  for (int i=0; i<p.n_chunk/2+1; i++)
+    hypercollision[i] = exp(-nu4*pow(static_cast<val_type>(i)*Dl,4)*p.dt);;
 
-template <typename idx_type, typename val_type>
-template <typename Container>
-void QuantumSplittingShift<idx_type,val_type,1>::prepare(Container &&con) {
-  // declare and allocate memory
 
-  // create texture object
-  // create texture object: we only have to do this once!
-  int n = 300;
+  cudaChannelFormatDesc channelDesc =
+        cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+  cudaMallocArray(&phi_tex,&channelDesc,p.nx,1);
 
-    // Specify texture
-    cudaResourceDesc resDesc{};
-    resDesc.resType = cudaResourceTypeLinear;
-    resDesc.res.linear.desc.f = cudaChannelFormatKindFloat;
-    resDesc.res.linear.desc.x = 32;
+  cudaResourceDesc resDesc{};
+  resDesc.resType = cudaResourceTypeArray;
+  resDesc.res.array.array = phi_tex;
 
-    resDesc.res.linear.devPtr = thrust::raw_pointer_cast(con.data());
-    resDesc.res.linear.sizeInBytes = n*sizeof(val_type);
+  cudaTextureDesc texDesc{};
+  texDesc.addressMode[0] = cudaAddressModeWrap;
+  texDesc.filterMode = cudaFilterModeLinear;
+  texDesc.readMode = cudaReadModeElementType;
 
-    // Specify texture object parameters
-    cudaTextureDesc texDesc{};
-    texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 0;
+  /// the addressMode is valid only if this = 1
+  texDesc.normalizedCoords = 1;
 
-    // Create texture object
-    cudaCreateTextureObject(&tex_obj, &resDesc, &texDesc, NULL);
+  // Create texture object
+  cudaCreateTextureObject(&tex_obj, &resDesc, &texDesc, NULL);
       
-
 }
-
-
 
 template <typename idx_type, typename val_type>
 template <typename Container>
-void QuantumSplittingShift<idx_type,val_type,1>::advance(Container&& con) {
+void QuantumSplittingShift<idx_type,val_type,1>::prepare(Container &con) {
 
-  std::ofstream oo("te.qout");
-  thrust::device_vector<val_type> buf(300);
-  auto tit = thrust::make_transform_iterator(
-             thrust::make_counting_iterator(0),[](int idx){return (val_type)idx/300.;});
+  auto devPtr = thrust::raw_pointer_cast(con.data());
+  cudaMemcpyToArray(phi_tex, 0, 0, devPtr, 
+                    p.nx*sizeof(val_type), cudaMemcpyDeviceToDevice);
+  
+  this->fft = new FFT<idx_type,val_type,1>(p.nv+2*p.nvbd,p.nx+2*p.nxbd);
+
+}
+
+/// calculate f = f*exp(i*phase) in complex plane
+struct exp_evolve {
+  
+  template <typename val_type>
+  __host__ __device__
+  cufftComplex operator()(cufftComplex val, 
+                          val_type phase) {
+    cufftComplex buffer;
+    buffer.x = val.x*cos(phase) - val.y*sin(phase); 
+    buffer.y = val.y*cos(phase) + val.x*sin(phase); 
+    return buffer; 
+  }
+
+};
+
+template <typename idx_type, typename val_type>
+template <typename Container>
+void QuantumSplittingShift<idx_type,val_type,1>::
+advance(Container& con1, Container& con2) {
+
+  using thrust::transform;
+  auto c_ptr = reinterpret_cast<cufftComplex*>(
+                  thrust::raw_pointer_cast(con2.data()));
 
   cudaTextureObject_t tex = tex_obj;
-  thrust::transform(thrust::make_counting_iterator(0),
-                    thrust::make_counting_iterator(300),
-                    buf.begin(),[tex]__host__ __device__(int i)
-                    {return tex1Dfetch<val_type>(tex,static_cast<val_type>((i+53)%300));});
 
-  thrust::copy(buf.begin(),buf.end(),std::ostream_iterator<val_type>(oo," "));
+  fft->forward(con1.begin(),con1.end(),con2.begin());
+
+  val_type qDt = p.dt/p.hbar;
+  val_type qDl = p.hbar*M_PI/(p.Lx*p.Lv);
+  val_type Dl  = 2.0*M_PI/p.Lv;
+  val_type X; /// normalized X
+    
+  idx_type n_chunk = p.n_chunk/2+1;
+  auto i_begin = thrust::make_counting_iterator((idx_type)0);
+  for (idx_type i = p.nxbd; i<p.nxbd+p.nx; i++) {
+
+    /// normalized position
+    X = static_cast<val_type>(i-p.nxbd)/p.nx;
+
+    /// essence of the quantum mechanical coupling!
+    transform(i_begin,i_begin+n_chunk,
+              hypercollision.begin(), phase.begin(),
+              [tex,X,qDt,qDl]__host__ __device__
+              (const val_type& l, const val_type& damp)
+              { return damp*qDt*(tex1D<val_type>(tex,X-l*qDl)
+                                -tex1D<val_type>(tex,X+l*qDl)); });
+
+    transform(thrust::device,
+              c_ptr+n_chunk*i,
+              c_ptr+n_chunk*i+n_chunk, phase.begin(), 
+              c_ptr+n_chunk*i, exp_evolve());
+
+  }
+
+  fft->backward(con2.begin(),con2.end(),con1.begin());
 
 }  
 

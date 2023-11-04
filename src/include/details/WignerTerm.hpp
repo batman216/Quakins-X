@@ -145,7 +145,6 @@ public:
                             -tex2D<val_type>(texObj, X1-.5*QQ*ll1,X2-.5*QQ*ll2));
                           });
         
-        
         // f(t+dt) = f(t)exp(-i*phase)
         evolve_with_phase(comp_ptr + i*nv1*nv2/2,
                           comp_ptr + (i+1)*nv1*nv2/2,

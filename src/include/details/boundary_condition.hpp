@@ -85,39 +85,38 @@ struct ReflectingBoundary {
 
   }
 
-
 };
 
 
 template <typename idx_type>
 struct PeriodicBoundary {
 
+  const idx_type nx, n_bd;
 
-  const idx_type nx, n_bd, n_chunk, n_step;
-
-  PeriodicBoundary(idx_type nx, idx_type n_bd, 
-                   idx_type n_step, idx_type n_chunk)
-  : nx(nx), n_bd(n_bd), n_chunk(n_chunk), n_step(n_step){}
+  PeriodicBoundary(idx_type nx, idx_type n_bd)
+  : nx(nx), n_bd(n_bd) { }
 
   template<typename itor_type> 
-  void implement(itor_type itor_begin, itor_type itor_end,char flag) {
+  void implement(itor_type itor_begin, itor_type itor_end) {
+
+    /// | boudary  |          main region          | boudary |
+    /// | left_bd  | left_in  |   ...   | right_in | righ_bd |
 
     strided_chunk_range<itor_type> 
-      left_bd(itor_begin,itor_end-n_bd,nx+2*n_bd, n_bd);
+      left_bd(itor_begin,itor_end,nx+2*n_bd, n_bd);
     strided_chunk_range<itor_type> 
-      right_bd(itor_begin+nx+n_bd,itor_end-n_bd,nx+2*n_bd, n_bd);
+      right_bd(itor_begin+nx+n_bd,itor_end,nx+2*n_bd, n_bd);
+    strided_chunk_range<itor_type> 
+      left_in(itor_begin+n_bd,itor_end,nx+2*n_bd, n_bd);
+    strided_chunk_range<itor_type> 
+      right_in(itor_begin+nx,itor_end,nx+2*n_bd, n_bd);
 
-    strided_chunk_range<itor_type> 
-      left_inside(itor_begin+n_bd,itor_end-n_bd,nx+2*n_bd, n_bd);
-    strided_chunk_range<itor_type> 
-      right_inside(itor_begin+nx,itor_end-n_bd,nx+2*n_bd, n_bd);
+    ///  left_in  -copy-> right_bd
+    thrust::copy(left_in.begin(),left_in.end(),right_bd.begin());
+    ///  right_in -copy-> left_bd
+    thrust::copy(right_in.begin(),right_in.end(),left_bd.begin());
 
-    thrust::copy(left_inside.begin(),left_inside.end(),
-                 right_bd.begin());
-    thrust::copy(right_inside.begin(),right_inside.end(),
-                 left_bd.begin());
   }
-
 
 };
 

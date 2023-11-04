@@ -26,12 +26,12 @@ public:
   }
 
   template <typename Container>
-  void prepare(Container con) { 
+  void prepare(Container& con) { 
     algorithm->prepare(con);
   }
 
   template <typename Container>
-  void advance(Container con) { 
+  void advance(Container& con) { 
     algorithm->advance(con);
   }
 

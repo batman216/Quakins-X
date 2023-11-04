@@ -6,7 +6,7 @@
  */
 #pragma once 
 #include <thrust/device_vector.h>
-
+#include "fftOutPlace.hpp"
 
 template <typename idx_type, typename val_type,int dim>
 struct Packet_quantum;
@@ -24,22 +24,25 @@ class QuantumSplittingShift;
 
 template <typename idx_type, typename val_type>
 class QuantumSplittingShift<idx_type,val_type,1>{
+  
 
   using Packet = Packet_quantum<idx_type,val_type,1>;
   Packet p;
 
-  thrust::device_vector<val_type> lambda, phase;
+  thrust::device_vector<val_type> lambda, phase, hypercollision;
 
-  cudaArray_t phi_texture;
+  FFT<idx_type,val_type,1> *fft;
+
+  cudaArray_t phi_tex;
   cudaTextureObject_t tex_obj;
   
 public:
   QuantumSplittingShift(Packet);
 
   template <typename Container>
-  void prepare(Container&&);
-  template <typename Container> __host__ __device__
-  void advance(Container&&);
+  void prepare(Container&);
+  template <typename Container> 
+  void advance(Container&,Container&);
 
 };
 

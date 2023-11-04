@@ -24,19 +24,23 @@ template <typename idx_type, typename val_type, int dim_x, int dim_v>
 struct Parameters;
 
 template <typename idx_type, typename val_type, 
-          int dim, typename ShapeFunctor>
+          int dim, template<typename,int> typename ShapeFunctor>
 struct Idx2Value {
 
+  typedef shape_packet_traits<val_type,dim,
+                              ShapeFunctor>::packet ShapePacket;
+ 
   using idx_XV_t = std::array<idx_type,dim>;
   using val_XV_t = std::array<val_type,dim>;
    
   idx_XV_t n_dim, n_bd;
   val_XV_t low_bound, h;
-  
+  ShapePacket p;
+
   __host__ __device__ 
   Idx2Value(idx_XV_t n_dim, idx_XV_t n_bd, 
-            val_XV_t lb, val_XV_t h)
-   : n_dim(n_dim),low_bound(lb), h(h), n_bd(n_bd) {}
+            val_XV_t lb, val_XV_t h, ShapePacket p)
+   : n_dim(n_dim),low_bound(lb), h(h), n_bd(n_bd), p(p) {}
 
   __host__ __device__ 
   val_type operator()(const idx_type& idx) {
@@ -54,7 +58,7 @@ struct Idx2Value {
     for (int i=0; i<dim; i++) 
       z[i] = low_bound[i]+.5*h[i]+h[i]*(idx_m[i]-n_bd[i]);
 
-    return ShapeFunctor::shape(z);  
+    return ShapeFunctor<val_type,dim>::shape(z,p);  
 
   }
 
@@ -65,52 +69,53 @@ template <typename idx_type, typename val_type,
           template<typename,int> typename ShapeFunctor>
 class PhaseSpaceInitialization {
 
+  typedef shape_packet_traits<val_type,dim_x+dim_v,
+                              ShapeFunctor>::packet ShapePacket;
   typedef Parameters<idx_type,val_type,dim_x,dim_v> Pmts;
+
   Pmts *p;
+  ShapePacket *packet;
 
 public:
   PhaseSpaceInitialization(Pmts *p) :p(p) {} 
-
 
   template <typename Container>
   void operator()(Container& storge) {
 
     using idx_XV_t = std::array<idx_type,dim_x+dim_v>;
     using val_XV_t = std::array<val_type,dim_x+dim_v>;
-   
+    using thrust::transform;
 
+   
     idx_XV_t num,num_ghost;
     val_XV_t low_bound, interval;
 
+    packet = new ShapePacket();
+
     for (int i=0; i<dim_v; ++i) {
-      num[i] = p->n_all_v_loc[i];
+      num[i] = p->n_all_v[i];
       num_ghost[i] = p->n_ghost_v[i];
       low_bound[i] = p->vmin[i];
       interval[i]  = p->dv[i];
     }
 
     for (int i=dim_v; i<dim_x+dim_v; ++i) {
-      num[i] = p->n_all_x_loc[i-dim_v];
+      num[i] = p->n_all_x[i-dim_v];
       num_ghost[i] = p->n_ghost_x[i-dim_v];
       low_bound[i] = p->xmin[i-dim_v];
       interval[i]  = p->dx[i-dim_v];
     }
 
-    for (int i=0; i<dim_v+dim_x; ++i) {
-      
-      std::cout << num[i] << " " << num_ghost[i] << " "
-                << low_bound[i] << " " << interval[i] << std::endl;
-
-    }
-    idx_type n_shift = p->mpi_rank * p->n_main_x_loc[dim_x]; 
+    idx_type n_shift = p->mpi_rank * p->n_whole_loc 
+                     - p->mpi_rank * 2*num_ghost[dim_x+dim_v-1]
+                     * std::accumulate(num.begin(),num.end()-1,1,std::multiplies<idx_type>()); 
     
     storge.resize(p->n_whole_loc);
-    thrust::transform(thrust::make_counting_iterator(n_shift),
-                      thrust::make_counting_iterator(p->n_whole_loc+n_shift), 
-                      storge.begin(),
-                      Idx2Value<idx_type,val_type,dim_x+dim_v,
-                                ShapeFunctor<val_type,dim_x+dim_v>>
-                                (num, num_ghost, low_bound, interval));
+
+    auto citor_begin = thrust::make_counting_iterator(n_shift);
+    transform(citor_begin, citor_begin + p->n_whole_loc, storge.begin(),
+              Idx2Value<idx_type,val_type,dim_x+dim_v,ShapeFunctor>
+              (num, num_ghost, low_bound, interval, *packet));
     // the template parameters are automatically deduced via the constructor
     
     // Idx2Value calculate the value of distribution function from 1d index,

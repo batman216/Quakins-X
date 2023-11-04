@@ -11,12 +11,7 @@
  * **************************/
 
 template <typename idx_type, typename val_type>
-struct Packet_fbm {
-
-  val_type dx, dt; 
-  idx_type nx, nv, nxbd, nvbd, nchunk;
-  idx_type nxtot,nvtot;
-};
+struct Packet_fbm; 
 
 
 namespace quakins {
@@ -35,10 +30,10 @@ public:
   FluxBalanceMethod(Packet);
 
   template <typename Container>
-  void prepare(Container);
+  void prepare(Container&);
 
   template <typename Container>
-  void advance(Container);
+  void advance(Container&);
   
 };
 

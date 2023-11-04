@@ -45,6 +45,7 @@ readRuntimeCommand(ifstream& is) {
       command_list[key] = LinuxCommand{std::stoi(command_vec[0]),
                                        std::stoi(command_vec[1]),
                                        command_vec[2]};
+      std::cout << key <<"," << command_vec[2] << std::endl;
     }
   }
 

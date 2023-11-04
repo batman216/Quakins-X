@@ -1,4 +1,11 @@
-#define SIGN(y) (y>=0?1:-1)
+
+template <typename idx_type, typename val_type>
+struct Packet_fbm {
+
+  val_type dx, dt; 
+  idx_type nx, nv, nxbd, nvbd, nchunk;
+  idx_type nxtot,nvtot;
+};
 
 namespace quakins {
 
@@ -14,7 +21,7 @@ FluxBalanceMethod(Packet p) : p(p) {
 
 template <typename idx_type,typename val_type>
 template <typename Container>
-void FluxBalanceMethod<idx_type,val_type>::prepare(Container con) {
+void FluxBalanceMethod<idx_type,val_type>::prepare(Container& con) {
   
   
   thrust::transform(con.begin(),con.end(),alpha.begin(),
@@ -49,21 +56,26 @@ struct intp_intg {
   }
 };
 
+#define SIGN(y) (y>=0?1:-1)
 
 template <typename idx_type,typename val_type>
 template <typename Container>
-void FluxBalanceMethod<idx_type,val_type>::advance(Container con) {
+void FluxBalanceMethod<idx_type,val_type>::advance(Container& con) {
 
-  using namespace thrust::placeholders; // where _1 ... _9 are defined
+  using namespace thrust::placeholders; /// where _1 ... _9 are defined
 
-  // the beginning of simulation area, without the ghost cells
-  auto itor_flux = flux.begin() + p.nxbd - 1;
+  /// the beginning of simulation area, without the ghost cells
+  auto flux_begin = flux.begin() + p.nxbd - 1,
+       flux_end   = flux.end()   - p.nxbd;
 
   int sign_v, I; bool v_is_pos; val_type a;  
 
   for (std::size_t i=p.nvbd; i<p.nv+p.nvbd; i++) {
-
     I = i - p.nvbd;
+
+    if (p.nxbd<std::abs(shift[I])+1)
+      std::puts("warning!");
+
     sign_v = SIGN(alpha[I]);
     v_is_pos = sign_v==1? true:false;
     
@@ -71,25 +83,24 @@ void FluxBalanceMethod<idx_type,val_type>::advance(Container con) {
     auto itor_left = con.begin() + i*p.nchunk;
 
     /// point to the leftmost value (including the ghost cells)
-    auto itor_shift = itor_left +p.nxbd + shift[I] - 1;
-    // nx cells indicate nx+1 faces
+    auto itor_shift = itor_left + p.nxbd + shift[I] - 1;
+    /// nx cells indicate nx+1 faces
 
     a = v_is_pos? alpha[I]:1+alpha[I];
 
     thrust::fill(flux.begin(),flux.end(),0.); // clear the buffer
 
-    intp_intg func(a); // prepare the interpolation algorithm
+    intp_intg intp(a); // prepare the interpolation algorithm
     auto zitor_shift = make_zip_iterator(thrust::make_tuple(
                          itor_shift-1, itor_shift, itor_shift+1));
-    thrust::transform(zitor_shift, zitor_shift+p.nx+1, itor_flux, func);
+    thrust::transform(zitor_shift, zitor_shift+p.nx+1, flux_begin, intp);
  
     for (std::size_t k=0; k<std::abs(shift[I]); k++) 
-      thrust::transform(itor_flux,itor_flux+p.nx+1,
+      thrust::transform(flux_begin, flux_end,
                         itor_shift + sign_v*k + (v_is_pos?1:0),
-                        itor_flux, _1+sign_v*_2);
+                        flux_begin, _1+sign_v*_2);
     
-
-    // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] -flux[i+1/2]
+    // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] - flux[i+1/2]
     thrust::adjacent_difference(flux.begin(),flux.end(),flux.begin());
     thrust::transform(itor_left+p.nxbd,itor_left+p.nxbd+p.nx,
                       flux.begin()+p.nxbd,itor_left+p.nxbd, _1-_2);

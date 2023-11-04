@@ -51,14 +51,14 @@ readBox(std::ifstream& is,std::string box_name) {
  
 
 template <typename idx_type, typename val_type, int dim_x, int dim_v>
-Parameters<idx_type,val_type,dim_x,dim_v>::Parameters(int mpi_rank, int mpi_size) 
-:mpi_rank(mpi_rank), mpi_size(mpi_size) {}
+Parameters<idx_type,val_type,dim_x,dim_v>::Parameters(int mpi_rank, int mpi_size, int dim_para) 
+:mpi_rank(mpi_rank), mpi_size(mpi_size), dim_para(dim_para) {}
 
 
 
 template <typename idx_type, typename val_type, int dim_x, int dim_v>
 Parameters<idx_type,val_type,dim_x,dim_v>::Parameters() 
-:mpi_rank(0), mpi_size(1) {}
+:mpi_rank(0), mpi_size(1), dim_para(1) {}
 
 
 
@@ -67,9 +67,10 @@ void Parameters<idx_type,val_type,dim_x,dim_v>::initial()
 {
   readTimeBox(INPUT_FILE);
   readDomainBox(INPUT_FILE);
+  readQuantumBox(INPUT_FILE);
+  readIOBox(INPUT_FILE);
 
 }
-
 
 template <typename idx_type, typename val_type, int dim_x, int dim_v>
 void Parameters<idx_type,val_type,dim_x,dim_v>::readTimeBox(std::string filename) 
@@ -125,7 +126,7 @@ readDomainBox(std::string filename) {
 
   for (int i=0; i<dim_v; i++) {
     assign(n_main_v[i], "nv"+std::to_string(i+1), the_map);
-    assign(n_ghost_v[i], "nv"+std::to_string(i+1)+"_ghost", the_map);
+    assign(n_ghost_v[i],"nv"+std::to_string(i+1)+"_ghost", the_map);
     n_main_v_loc[i] = n_main_v[i];
     n_all_v[i] = n_main_v[i] + n_ghost_v[i]*2;
     n_all_v_loc[i] = n_all_v[i];
@@ -136,32 +137,50 @@ readDomainBox(std::string filename) {
     dv[i] = Lv[i]/n_main_v[i];
 
   }
+  input_file.close();
 
-  if constexpr (dim_x>1) {
-    try {
+#ifdef PARALLEL
+  n_main_x_loc[dim_para] /= mpi_size;
+  n_all_x[dim_para] = n_main_x[dim_para]+2*mpi_size*n_ghost_x[dim_para];
+  n_all_x_loc[dim_para] = n_all_x[dim_para]/mpi_size;
+#endif
 
-      if (n_main_x[dim_x-1]%mpi_size!=0) throw gne;
-
-      n_main_x_loc[dim_x-1] /= mpi_size;
-      n_all_x[dim_x-1] = n_main_x[dim_x-1]+2*mpi_size*n_ghost_x[dim_x-1];
-      n_all_x_loc[dim_x-1] /= mpi_size;
-
-    } catch (std::exception& e) {
-      
-      if (mpi_rank==0) std::cerr << e.what() << std::endl;
-      exit(-1);
-
-    }
-  }
-
+  /// the total data number of a single species
   n_whole =  std::accumulate(n_all_x.begin(),n_all_x.end(),1,std::multiplies<idx_type>())
             *std::accumulate(n_all_v.begin(),n_all_v.end(),1,std::multiplies<idx_type>());
+  n_whole_main =  std::accumulate(n_main_x.begin(),n_main_x.end(),1,std::multiplies<idx_type>())
+                  *std::accumulate(n_main_v.begin(),n_main_v.end(),1,std::multiplies<idx_type>());
 
   n_whole_loc = n_whole/mpi_size;
+  n_whole_main_loc = n_whole_main/mpi_size;
 
-  std::cout << n_whole << " " << n_whole_loc << std::endl;
+
+  __THE_FOLLOWING_CODE_ONLY_RUN_ON_RANK0__
+  
+  std::cout << "a single phase space fluid has " << n_whole << " numbers" << std::endl; 
+  std::cout << "a single phase space fluid costs " 
+  << 2*n_whole*sizeof(val_type)/1073741824.0 << "GB of memory, " 
+  << 2*n_whole_loc*sizeof(val_type)/1073741824.0 << "GB for each GPU." <<std::endl;
+
+  __THE_ABOVE_CODE_ONLY_RUN_ON_RANK0__
 
 
+}
+
+
+template <typename idx_type, typename val_type, int dim_x, int dim_v>
+void Parameters<idx_type,val_type,dim_x,dim_v>::readIOBox(std::string filename) 
+{
+
+  std::ifstream input_file(filename);
+  auto the_map = readBox(input_file, "IO_control");
+
+  assign(large_file_intp, "large_file_intp", the_map);
+  assign(small_file_intp, "small_file_intp", the_map);
+
+  input_file.close();
+  input_file.open(filename);
+  this->commands = readRuntimeCommand(input_file);
   input_file.close();
 
 }

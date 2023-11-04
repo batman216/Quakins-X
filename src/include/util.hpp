@@ -184,6 +184,7 @@ struct LinuxCommand {
   LinuxCommand();
   LinuxCommand(int,int,std::string);
 };
+
 // read runtime Linux command in the input file
 std::unordered_map<std::string, LinuxCommand>
 readRuntimeCommand(std::ifstream& is);
@@ -207,6 +208,9 @@ std::ostream& operator<<(std::ostream& os, const thrust::device_vector<T>& obj) 
 // for one device per thread operation
 uint64_t getHostHash(const char *);
 void getHostName(char *, int);
+
+
+
 
 
 

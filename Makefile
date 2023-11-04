@@ -35,7 +35,7 @@ INPUT = quakins.input
 
 $(shell mkdir -p ${BLD})
 
-MACRO = -D ANYHOW,HIGH_POISS,QUANTUM
+MACRO = -D ANYHOW,HIGH_POISS,QUANTUM,PARALLEL
 
 CPP = ${wildcard ${SRC}/*.cpp}
 CU  = ${wildcard ${SRC}/*.cu}
@@ -58,7 +58,7 @@ ${BLD}/%.o: ${SRC}/%.cpp
 	${CXX} ${MACRO} ${SUPPRESS} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 mpirun: ${BLD}/${EXE} ${INPUT}
-	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 1 ./${EXE}
+	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 2 ./${EXE}
 
 run: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && ./${EXE}

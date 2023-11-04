@@ -11,20 +11,13 @@ class Boundary {
   Policy<idx_type> *policy;
 
 public:
-
-  Boundary(idx_type nx, idx_type n_bd, 
-                    idx_type n_step, idx_type n_chunk) { 
-    policy = new Policy<idx_type>(nx,n_bd,n_step,n_chunk);
-  }
-
+  template <typename ...Ts>
+  Boundary(Ts&& ...ts) { policy = new Policy<idx_type>(std::forward<Ts>(ts)...); }
 
   template<typename itor_type> 
-  void operator()(itor_type itor_begin, itor_type itor_end,char flag) {
-
-    policy->implement(itor_begin,itor_end,flag);
-  }
-
-
+  void operator()(itor_type itor_begin, itor_type itor_end) 
+  { policy->implement(itor_begin,itor_end); }
+  
 };          
 
 

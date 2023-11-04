@@ -14,6 +14,7 @@ struct ParallelCommunicator {
   ncclUniqueId nccl_id;
   cudaStream_t s;
   ncclComm_t comm;
+
   ParallelCommunicator(int mpi_rank, int mpi_size, MPI_Comm mComm)
   : mpi_size(mpi_size), mpi_rank(mpi_rank)
   {
@@ -85,14 +86,45 @@ struct PhaseSpaceParallelCommute {
              comm_size, ncclFloat, l_rank, para->comm, para->s); 
     ncclGroupEnd();
 
-    thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),
-                 itor_begin);
-    thrust::copy(r_recv_buff.begin(),r_recv_buff.end(),
-                 itor_end-comm_size);
+    thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),itor_begin);
+    thrust::copy(r_recv_buff.begin(),r_recv_buff.end(),itor_end-comm_size);
 
     cudaStreamSynchronize(para->s);
   }
 };
+
+template <typename idx_type, typename val_type>
+struct DensityAllGather {
+
+  ParallelCommunicator<idx_type,val_type> *para;
+
+  const idx_type dens_size;
+
+  DensityAllGather(idx_type dens_size, 
+                ParallelCommunicator<idx_type,val_type> *para) 
+  : dens_size(dens_size), para(para) {}
+
+
+  template <typename itor_type>
+  void operator()(itor_type recv_begin, itor_type send_begin) {
+
+    ncclGroupStart();
+
+    for (int r=0; r<para->mpi_size; r++) {
+      ncclSend(thrust::raw_pointer_cast(&(*send_begin)), 
+               dens_size,ncclFloat,r,para->comm,para->s);
+      ncclRecv(thrust::raw_pointer_cast(&(*recv_begin))+r*dens_size, 
+               dens_size,ncclFloat,r,para->comm,para->s);
+    }
+    ncclGroupEnd();
+
+    cudaStreamSynchronize(para->s);
+  }
+
+
+};
+
+
 
 template <typename idx_type, typename val_type>
 struct DensityGather {

@@ -4,16 +4,16 @@
 
 @ time --------------------------------*
 
-step_total        = 1
-dt                = 0.025
+step_total        = 1000
+dt                = 0.05
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1               =  300
+nx1               =  280
 nx2               =  50
-nv1               =  300
+nv1               =  200
 nv2               =  50
 
 nx1_ghost         =  10
@@ -22,77 +22,35 @@ nv1_ghost         =  10
 nv2_ghost         =  0
 
 x1min             =  0
-x1max             =  20
+x1max             =  16
 x2min             =  0
 x2max             =  50
-v1min             = -4
-v1max             =  4
-v2min             = -4
-v2max             =  4
+v1min             = -3
+v1max             =  3
+v2min             = -10
+v2max             =  10
 
 @ domain ------------------------------*
 
-@ runtime -----------------------------*
+@ quantum -----------------------------*
 
-copytoc           = 0,10,echo 'cp run/dens_e@0.qout run/potential@0.qout /mnt/c/data_process/'
+hbar              =  0
 
-@ runtime -----------------------------*
+@ quantum -----------------------------*
 
-@ space_initial -----------------------*
 
-x_sin_number      = 2 
-y_sin_number      = 2 
-x_cos_number      = 2 
-y_cos_number      = 2 
+@ runtime ------------------------------*
 
-ptb_x_cos         = 0.1,0.1
-ptb_x_sin         = 0.1,0.1
-ptb_y_cos         = 0.1,0.1
-ptb_y_sin         = 0.1,0.1
+copytobatman =  0,100, cp ff@* dens1.qout potn1.qout /mnt/c/data_process/
 
-sin_kx            = 1,2
-sin_ky            = 1,2
-cos_kx            = 1,2
-cos_ky            = 1,2
+@ runtime ------------------------------*
 
-envelope_xwidth   = 0 
-envelope_ywidth   = 0
-envelope_height   = 0
+@ IO_control ---------------------------*
 
-guassian_number   = 0
+large_file_intp   =  20
+small_file_intp   =  2
 
-@ space_initial -----------------------*
-
-@ velocity_initial --------------------*
-
-bump_number       =  2
-bump_shape        =  1,1
-x_bump_width      =  0.3,0.3
-y_bump_width      =  0.3,0.3
-bump_height       =  1,1
-x_bump_shift      =  1,-1
-y_bump_shift      =  1,-1
-
-@ velocity_initial --------------------*
-
-@ Quantum -----------------------------*
-
-hbar              =  1.0
-degeneracy        =  0.1
-
-@ Quantum -----------------------------*
-
-@ diagnosis ---------------------------*
-
-dens_print_intv   =  20
-
-system_ctrl_1     =  cd
-ctrl_1_intv       =  10
-
-system_ctrl_2     =  cd
-ctrl_2_intv       =  10
-
-@ diagnosis ---------------------------*
+@ IO_control ---------------------------*
 
 @ test particle -----------------------*
 
@@ -101,5 +59,44 @@ vp                =  1
 
 @ test particle -----------------------*
 
-================================================== the end 
+# -------------- initial shapes ----------------- #
 
+@ two_Maxwell ----------------------*
+
+wave_number_norm  =  1
+wave_length       =  16
+vthermal1         =  0.2
+vthermal2         =  0.2
+vdrift1           = -0.6
+vdrift2           =  0.6
+Amplitude1        =  0.5
+Amplitude2        =  0.5
+ptb               =  0.1
+
+@ two_Maxwell ----------------------*
+
+
+@ single_Maxwell ----------------------*
+
+wave_number_norm  =  1
+wave_length       =  16
+vth               =  1
+vd                =  0
+ptb               =  0.00001
+
+@ single_Maxwell ----------------------*
+
+
+
+@ single_FermiDirac ----------------------*
+
+wave_number_norm  =  1
+wave_length       =  16
+Theta             =  .1
+vd                =  0
+mu                =  1
+ptb               =  0.1
+
+@ single_FermiDirac ----------------------*
+
+================================================== the end 

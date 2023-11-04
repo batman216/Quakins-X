@@ -9,6 +9,7 @@
 #include <numeric>
 #include "quakins_exceptions.hpp"
 #include "quakins_macros.hpp"
+#include "util.hpp"
 
 
 namespace quakins {
@@ -17,7 +18,9 @@ namespace quakins {
 template <typename idx_type, typename val_type, int dim_x, int dim_v>
 struct Parameters {
 
-  const int mpi_rank, mpi_size;
+  /// dim_para stands for the dimension that is parallelized,
+  /// quakins supports parallelization in only one dimension.
+  const int mpi_rank, mpi_size, dim_para;
 
   using idx_X_t = std::array<idx_type,dim_x>;
   using val_X_t = std::array<val_type,dim_x>;
@@ -37,6 +40,7 @@ struct Parameters {
   val_V_t dv, Lv, vmin, vmax;
 
   idx_type n_whole, n_whole_loc;
+  idx_type n_whole_main, n_whole_main_loc;
   // -----------------------------
 
   // --------- time box ----------
@@ -48,19 +52,25 @@ struct Parameters {
   val_type hbar, degeneracy;
   // -----------------------------
   
+  // ------- io box ---------
+  idx_type small_file_intp, large_file_intp;
+  std::unordered_map<std::string, LinuxCommand> commands; 
+  // -----------------------------
+
+
   Parameters();
-  Parameters(int,int);
+  Parameters(int,int,int);
 
   void initial();
   void readTimeBox(std::string);
   void readDomainBox(std::string);
   void readQuantumBox(std::string);
+  void readIOBox(std::string);
 
 };
 
 
-
-#include "Parameters.inl"
+#include "details/Parameters.inl"
 
 
 
