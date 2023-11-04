@@ -4,8 +4,8 @@
 
 @ time --------------------------------*
 
-step_total        = 1000
-dt                = 0.05
+step_total        = 4000
+dt                = 0.02
 
 @ time --------------------------------*
 
@@ -13,20 +13,20 @@ dt                = 0.05
 
 nx1               =  280
 nx2               =  50
-nv1               =  200
+nv1               =  300
 nv2               =  50
 
-nx1_ghost         =  10
+nx1_ghost         =  4
 nx2_ghost         =  5
-nv1_ghost         =  10
+nv1_ghost         =  4
 nv2_ghost         =  0
 
 x1min             =  0
 x1max             =  16
 x2min             =  0
 x2max             =  50
-v1min             = -3
-v1max             =  3
+v1min             = -6
+v1max             =  6
 v2min             = -10
 v2max             =  10
 
@@ -34,7 +34,7 @@ v2max             =  10
 
 @ quantum -----------------------------*
 
-hbar              =  0
+hbar              =  4
 
 @ quantum -----------------------------*
 

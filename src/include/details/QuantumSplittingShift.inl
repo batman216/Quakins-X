@@ -4,8 +4,11 @@ template <typename idx_type, typename val_type>
 struct Packet_quantum<idx_type,val_type,1> {
 
   val_type hbar, dt, Lv, Lx; 
-  idx_type nv, nvbd, nx, nxbd, n_chunk;
+  idx_type nv, nvbd, nxloc, nxbd, n_chunk;
 
+  int mpi_rank,mpi_size;
+  
+  val_type nx;
 };
 
 
@@ -13,9 +16,10 @@ struct Packet_quantum<idx_type,val_type,1> {
 template <typename idx_type, typename val_type>
 QuantumSplittingShift<idx_type,val_type,1>::QuantumSplittingShift(Packet p): p(p) {
 
+  this->p.nx = p.nxloc*p.mpi_size; 
   val_type Dl  = 2.0*M_PI/p.Lv;
-  val_type nu4 = 5e-4;
-    
+  val_type nu4 = 0;
+
   phase.resize(p.n_chunk/2+1);
   hypercollision.resize(p.n_chunk/2+1);
 
@@ -25,7 +29,7 @@ QuantumSplittingShift<idx_type,val_type,1>::QuantumSplittingShift(Packet p): p(p
 
   cudaChannelFormatDesc channelDesc =
         cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-  cudaMallocArray(&phi_tex,&channelDesc,p.nx,1);
+  cudaMallocArray(&phi_tex,&channelDesc,this->p.nx,1);
 
   cudaResourceDesc resDesc{};
   resDesc.resType = cudaResourceTypeArray;
@@ -52,7 +56,7 @@ void QuantumSplittingShift<idx_type,val_type,1>::prepare(Container &con) {
   cudaMemcpyToArray(phi_tex, 0, 0, devPtr, 
                     p.nx*sizeof(val_type), cudaMemcpyDeviceToDevice);
   
-  this->fft = new FFT<idx_type,val_type,1>(p.nv+2*p.nvbd,p.nx+2*p.nxbd);
+  this->fft = new FFT<idx_type,val_type,1>(p.nv+2*p.nvbd,p.nxloc+2*p.nxbd);
 
 }
 
@@ -89,12 +93,13 @@ advance(Container& con1, Container& con2) {
   val_type Dl  = 2.0*M_PI/p.Lv;
   val_type X; /// normalized X
     
-  idx_type n_chunk = p.n_chunk/2+1;
+  idx_type ix, n_chunk = p.n_chunk/2+1;
   auto i_begin = thrust::make_counting_iterator((idx_type)0);
-  for (idx_type i = p.nxbd; i<p.nxbd+p.nx; i++) {
+  for (idx_type i = p.nxbd; i<p.nxbd+p.nxloc; i++) {
 
+    ix = i - p.nxbd + p.mpi_rank*p.nxloc;
     /// normalized position
-    X = static_cast<val_type>(i-p.nxbd)/p.nx;
+    X = static_cast<val_type>(ix)/p.nx;
 
     /// essence of the quantum mechanical coupling!
     transform(i_begin,i_begin+n_chunk,

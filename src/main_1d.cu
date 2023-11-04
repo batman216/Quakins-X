@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
   thrust::device_vector<Real> f,f_avatar(p->n_whole_loc);
 
   quakins::PhaseSpaceInitialization<uInt,Real,DIM_X,DIM_V,
-                                    quakins::TwoMaxwellStream> ps_init(p);
+                                    quakins::SingleFermiDirac> ps_init(p);
   ps_init(f);
    
   quakins::PhaseSpaceParallelCommute<uInt,Real> 
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
     quakins::FluxBalanceMethod> fsSolverV({dv,dt,nv,nxloc,nvbd,nxbd,nvtot});
 
   quakins::QuantumSplittingShift<uInt,Real,DIM_V> 
-    quantumSolver({p->hbar,p->time_step, Lv,Lx,nv,nvbd,nx,nxbd,nvtot});
+    quantumSolver({p->hbar,p->time_step, Lv,Lx,nv,nvbd,nxloc,nxbd,nvtot,mpi_rank,mpi_size});
 
   thrust::host_vector<Real> v_coord(nv), _F(nxloc);
 
