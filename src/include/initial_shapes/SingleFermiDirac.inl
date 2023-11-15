@@ -43,7 +43,8 @@ struct SingleFermiDirac<val_type,2> {
 
     auto f = []__host__ __device__ (val_type v, val_type vd, 
                                     val_type Theta, val_type mu) {
-      return 0.75*Theta*log(1.0 + exp((mu-pow(v-vd,2))/Theta)); 
+      return 0.75*pow(Theta,1.5)*log(1.0 + exp((mu/Theta-pow(v-vd,2)))); 
+
     };
 
     return f(z[0],vd,Theta,mu) * (1.0+ptb*cosf(2.0*M_PI/p.L*p.kn*z[1]));

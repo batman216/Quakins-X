@@ -6,7 +6,7 @@
  */
 #pragma once 
 #include <thrust/device_vector.h>
-#include "fftOutPlace.hpp"
+#include "fft.hpp"
 
 template <typename idx_type, typename val_type,int dim>
 struct Packet_quantum;

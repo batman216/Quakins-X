@@ -21,6 +21,19 @@
 namespace quakins {
 
 
+template <typename val_type>
+class FFT_traits;
+
+template <>
+class FFT_traits<float> {
+  const cufftType forward = CUFFT_R2C;
+  const cufftType backward = CUFFT_C2R;
+};
+
+
+
+
+
 template <typename idx_type,
           typename val_type, int fft_rank>
 class FFT;
@@ -28,6 +41,8 @@ class FFT;
 
 template <typename idx_type, typename val_type>
 class FFT<idx_type,val_type,1> {
+
+  FFT_traits<val_type> fft_type;
 
   cufftHandle plan_fwd, plan_bwd;
   val_type norm;
@@ -44,7 +59,7 @@ public:
     CUFFT_CALL(
     cufftPlanMany(&plan_fwd, 1, Nfft, Nrnem, 1, nr,
                                       Ncnem, 1, nc,
-                                      CUFFT_R2C, n_batch));
+                                      fft_type.forward, n_batch));
     CUFFT_CALL(
     cufftPlanMany(&plan_bwd, 1, Nfft, Ncnem, 1, nc,
                                       Nrnem, 1, nr,

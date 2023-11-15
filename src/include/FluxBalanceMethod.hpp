@@ -10,21 +10,21 @@
  *
  * **************************/
 
-template <typename idx_type, typename val_type>
+template <typename idx_type, typename r_type, typename c_type>
 struct Packet_fbm; 
 
 
 namespace quakins {
 
-template <typename idx_type, typename val_type>
+template <typename idx_type, typename r_type, typename c_type>
 class FluxBalanceMethod {
   
-  using Packet = Packet_fbm<idx_type,val_type>;
+  using Packet = Packet_fbm<idx_type,r_type,c_type>;
   Packet p;
 
-  std::vector<val_type> alpha;
+  std::vector<r_type> alpha;
   std::vector<int> shift;
-  thrust::device_vector<val_type> flux;
+  thrust::device_vector<c_type> flux;
 
 public:
   FluxBalanceMethod(Packet);
@@ -38,13 +38,13 @@ public:
 };
 
 
-template <typename idx_type, typename val_type,
-          template<typename,typename> typename T>
+template <typename idx_type, typename r_type, typename c_type,
+          template<typename,typename,typename> typename T>
 struct packet_traits;
 
-template <typename idx_type, typename val_type>
-struct packet_traits<idx_type,val_type,FluxBalanceMethod> {
-  typedef Packet_fbm<idx_type,val_type> name;
+template <typename idx_type, typename r_type, typename c_type>
+struct packet_traits<idx_type,r_type, c_type,FluxBalanceMethod> {
+  typedef Packet_fbm<idx_type,r_type,c_type> name;
 };
 
 } // namespace quakins

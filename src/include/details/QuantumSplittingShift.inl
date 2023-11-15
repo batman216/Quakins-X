@@ -18,7 +18,7 @@ QuantumSplittingShift<idx_type,val_type,1>::QuantumSplittingShift(Packet p): p(p
 
   this->p.nx = p.nxloc*p.mpi_size; 
   val_type Dl  = 2.0*M_PI/p.Lv;
-  val_type nu4 = 0;
+  val_type nu4 = 1e-2;
 
   phase.resize(p.n_chunk/2+1);
   hypercollision.resize(p.n_chunk/2+1);

@@ -12,17 +12,17 @@ namespace quakins {
  * **************************/
 
 
-template <typename idx_type, typename val_type, 
-          template<typename,typename> typename Algorithm>
+template <typename idx_type, typename r_type, typename c_type, 
+          template<typename,typename,typename> typename Algorithm>
 class SplittingShift{
 
-  Algorithm<idx_type,val_type> *algorithm;
-  using Packet = packet_traits<idx_type,val_type,Algorithm>::name;
+  Algorithm<idx_type,r_type,c_type> *algorithm;
+  using Packet = packet_traits<idx_type,r_type,c_type,Algorithm>::name;
 
 public:
   
   SplittingShift(Packet p) {
-    algorithm = new Algorithm<idx_type,val_type>(p);
+    algorithm = new Algorithm<idx_type,r_type,c_type>(p);
   }
 
   template <typename Container>

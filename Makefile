@@ -35,7 +35,7 @@ INPUT = quakins.input
 
 $(shell mkdir -p ${BLD})
 
-MACRO = -D ANYHOW,HIGH_POISS,QUANTUM,PARALLEL
+MACRO = -D ANYHOW,HIGH_POISS,QUANTUM
 
 CPP = ${wildcard ${SRC}/*.cpp}
 CU  = ${wildcard ${SRC}/*.cu}
@@ -43,7 +43,7 @@ HPP = ${wildcard ${SRC}/include/*.hpp}
 
 CPPOBJ = ${patsubst ${SRC}/%.cpp,${BLD}/%.o,${CPP}}
 
-MAIN = main_1d
+MAIN = complex_main_1d
 
 MAINCU = ${SRC}/${MAIN}.cu
 MAINO = ${BLD}/${MAIN}.o
@@ -58,7 +58,7 @@ ${BLD}/%.o: ${SRC}/%.cpp
 	${CXX} ${MACRO} ${SUPPRESS} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 mpirun: ${BLD}/${EXE} ${INPUT}
-	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 2 ./${EXE}
+	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 6 ./${EXE}
 
 run: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && ./${EXE}

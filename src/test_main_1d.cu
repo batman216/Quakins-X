@@ -7,7 +7,6 @@
 
 #include <iostream>
 #include <mpi.h>
-#include <thrust/complex.h>
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 #include <thrust/execution_policy.h>
@@ -28,7 +27,6 @@
 
 using uInt = std::size_t;
 using Real = float;
-using Complex = thrust::complex<Real>;
 
 int main(int argc, char* argv[]) {
 
@@ -64,31 +62,34 @@ int main(int argc, char* argv[]) {
        Lv = p->vmax[0]-p->vmin[0]+2*dv*nvbd;
 
   
-  thrust::device_vector<Complex> f,f_avatar(p->n_whole_loc+2*nxtotloc);
+  thrust::device_vector<Real> f_avatar(p->n_whole_loc+2*nxtotloc);
+  thrust::device_vector<Real> f(p->n_whole_loc+2*nxtotloc);
 
   quakins::PhaseSpaceInitialization<uInt,Real,DIM_X,DIM_V,
-                                    quakins::SingleFermiDirac> ps_init(p);
+                                    quakins::SingleMaxwell_kvspace> ps_init(p);
   ps_init(f);
    
   quakins::PhaseSpaceParallelCommute<uInt,Real> 
     ps_nccl_com(nxbd*nvtot,para);
 
 
-  quakins::Integrator<Complex> integrate(nvtot,nxloc,
+  quakins::Integrator<Real> integrate(nvtot,nxloc,
                                       p->vmin[0]-dv*nvbd,p->vmax[0]+dv*nvbd);
  
-  thrust::device_vector<Complex> dens_tot(nx), dens_e(nx),dens_e_loc(nxloc), potn(nx), Efield(nx);
-  quakins::DensityAllGather<uInt,Complex> dens_allgather(nxloc,para);
+  thrust::device_vector<Real> dens_tot(nx), dens_e(nx),dens_e_loc(nxloc), potn(nx), Efield(nx);
+  quakins::DensityAllGather<uInt,Real> dens_allgather(nxloc,para);
 
   integrate(f.begin()+nxbd*nvtot,dens_e_loc.begin());
   dens_allgather(dens_e.begin(),dens_e_loc.begin());
 
-  quakins::PoissonSolver<uInt,Complex,DIM_X,FFT> solvePoissonEq(p->n_main_x,p->xmin,p->xmax);
+  quakins::PoissonSolver<uInt,Real,DIM_X,FFT> solvePoissonEq(p->n_main_x,p->xmin,p->xmax);
+
+  quakins::gizmos::SolveEfieldByIntegration<uInt,Real,1> solveEfield(nx,dx);
     
-  quakins::SplittingShift<uInt,Complex,
+  quakins::SplittingShift<uInt,Real,
     quakins::FluxBalanceMethod> fsSolverX({dx,dt/2,nxloc,nv,nxbd,nvbd,nxtotloc});
 
-  quakins::SplittingShift<uInt,Complex,
+  quakins::SplittingShift<uInt,Real,
     quakins::FluxBalanceMethod> fsSolverV({dv,dt,nv,nxloc,nvbd,nxbd,nvtot});
 
   quakins::QuantumSplittingShift<uInt,Real,DIM_V> 
@@ -109,11 +110,13 @@ int main(int argc, char* argv[]) {
   quakins::ReorderCopy<uInt,Real,2> rocopy_bwd({nxtotloc,nvtot},{1,0});
   
   ps_nccl_com(f.begin(),f.end());
-  rocopy_fwd(f.begin(),f.end(),f_avatar.begin());
   diag.print(0,f,dens_e,potn,Efield);
   
   quakins::Boundary<uInt,PeriodicBoundary> x_boundary(nx,nxbd);
   fsSolverX.prepare(v_coord);
+
+  quakins::FFT<uInt,Real,1> fft(nvtot,nxtotloc); 
+  fft.forward(f.begin(),f.end(),f_avatar.begin());
 
   std::puts("main loop starts...");
   for (int step=1; step<p->stop_at; step++){
@@ -136,8 +139,6 @@ int main(int argc, char* argv[]) {
     ps_nccl_com(f.begin(),f.end());
 
     /// calculate the density by integration
-    integrate(f.begin()+nxbd*nvtot,dens_e_loc.begin());
-    dens_allgather(dens_e.begin(),dens_e_loc.begin());
     /// sum up densities of different species
     using namespace thrust::placeholders;
     thrust::transform(dens_e.begin(),dens_e.end(),

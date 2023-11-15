@@ -4,29 +4,29 @@
 
 @ time --------------------------------*
 
-step_total        = 4000
+step_total        = 2000
 dt                = 0.02
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1               =  280
-nx2               =  50
-nv1               =  300
+nx1               =  240
+nx2               =  180
+nv1               =  800
 nv2               =  50
 
-nx1_ghost         =  4
+nx1_ghost         =  5
 nx2_ghost         =  5
-nv1_ghost         =  4
+nv1_ghost         =  0
 nv2_ghost         =  0
 
 x1min             =  0
-x1max             =  16
+x1max             =  20
 x2min             =  0
 x2max             =  50
-v1min             = -6
-v1max             =  6
+v1min             =  0
+v1max             =  10
 v2min             = -10
 v2max             =  10
 
@@ -34,7 +34,7 @@ v2max             =  10
 
 @ quantum -----------------------------*
 
-hbar              =  4
+hbar              =  1
 
 @ quantum -----------------------------*
 
@@ -47,8 +47,9 @@ copytobatman =  0,100, cp ff@* dens1.qout potn1.qout /mnt/c/data_process/
 
 @ IO_control ---------------------------*
 
-large_file_intp   =  20
-small_file_intp   =  2
+large_file_intp   =  100
+small_file_intp   =  1
+x_dot_probe       =  200
 
 @ IO_control ---------------------------*
 
@@ -64,7 +65,7 @@ vp                =  1
 @ two_Maxwell ----------------------*
 
 wave_number_norm  =  1
-wave_length       =  16
+wave_length       =  7
 vthermal1         =  0.2
 vthermal2         =  0.2
 vdrift1           = -0.6
@@ -78,11 +79,11 @@ ptb               =  0.1
 
 @ single_Maxwell ----------------------*
 
-wave_number_norm  =  1
-wave_length       =  16
+wave_number_norm  =  5
+wave_length       =  80
 vth               =  1
 vd                =  0
-ptb               =  0.00001
+ptb               =  0.06
 
 @ single_Maxwell ----------------------*
 
@@ -91,11 +92,11 @@ ptb               =  0.00001
 @ single_FermiDirac ----------------------*
 
 wave_number_norm  =  1
-wave_length       =  16
+wave_length       =  20
 Theta             =  .1
 vd                =  0
-mu                =  1
-ptb               =  0.1
+mu                =  0.99163818359375
+ptb               =  0.2
 
 @ single_FermiDirac ----------------------*
 
