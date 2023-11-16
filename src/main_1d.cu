@@ -27,14 +27,13 @@
 #include "include/QuantumSplittingShift.hpp"
 
 using uInt = std::size_t;
-using Real = float;
+using Real = double;
 using Complex = thrust::complex<Real>;
 
 int main(int argc, char* argv[]) {
 
-#ifdef PARALLEL
   int mpi_size,  mpi_rank;
-  MPI_Init(&argc,&argv);
+  MPI_Init(&argc, &argv);
   MPI_Comm_size(MCW,&mpi_size);
   MPI_Comm_rank(MCW,&mpi_rank);
 
@@ -44,10 +43,6 @@ int main(int argc, char* argv[]) {
   auto *para = new quakins::
     ParallelCommunicator<uInt,Real>(mpi_rank,mpi_size,MCW);
 
-#else
-  auto *p = new quakins::
-    Parameters<uInt,Real,DIM_X,DIM_V>();
-#endif
 
   p->initial();
   
@@ -57,38 +52,37 @@ int main(int argc, char* argv[]) {
        nxbd = p->n_ghost_x[0], nvbd = p->n_ghost_v[0],
        nxtot = p->n_all_x[0],  nvtot = p->n_all_v[0],
        nxtotloc = p->n_all_x_loc[0];
-  std::cout << nxtotloc << " " << nxloc << std::endl;
   Real dx = p->dx[0], dv = p->dv[0],
        dt = p->time_step,vmin = p->vmin[0],
        Lx = p->xmax[0]-p->xmin[0],
        Lv = p->vmax[0]-p->vmin[0]+2*dv*nvbd;
 
   
-  thrust::device_vector<Complex> f,f_avatar(p->n_whole_loc+2*nxtotloc);
+  thrust::device_vector<Real> f,f_avatar(p->n_whole_loc+2*nxtotloc);
 
   quakins::PhaseSpaceInitialization<uInt,Real,DIM_X,DIM_V,
                                     quakins::SingleFermiDirac> ps_init(p);
   ps_init(f);
    
-  quakins::PhaseSpaceParallelCommute<uInt,Real> 
-    ps_nccl_com(nxbd*nvtot,para);
+  quakins::PhaseSpaceParallelCommute<uInt,Real> ps_nccl_com(nxbd*nvtot,para);
+  std::cout << nvtot << " " << nxbd << std::endl;
 
-
-  quakins::Integrator<Complex> integrate(nvtot,nxloc,
+  
+  quakins::Integrator<Real> integrate(nvtot,nxloc,
                                       p->vmin[0]-dv*nvbd,p->vmax[0]+dv*nvbd);
  
-  thrust::device_vector<Complex> dens_tot(nx), dens_e(nx),dens_e_loc(nxloc), potn(nx), Efield(nx);
-  quakins::DensityAllGather<uInt,Complex> dens_allgather(nxloc,para);
+  thrust::device_vector<Real> dens_tot(nx), dens_e(nx),dens_e_loc(nxloc), potn(nx), Efield(nx);
+  quakins::DensityAllGather<uInt,Real> dens_allgather(nxloc,para);
 
   integrate(f.begin()+nxbd*nvtot,dens_e_loc.begin());
   dens_allgather(dens_e.begin(),dens_e_loc.begin());
 
-  quakins::PoissonSolver<uInt,Complex,DIM_X,FFT> solvePoissonEq(p->n_main_x,p->xmin,p->xmax);
+  quakins::PoissonSolver<uInt,Real,DIM_X,FFT> solvePoissonEq(p->n_main_x,p->xmin,p->xmax);
     
-  quakins::SplittingShift<uInt,Complex,
+  quakins::SplittingShift<uInt,Real,Real,
     quakins::FluxBalanceMethod> fsSolverX({dx,dt/2,nxloc,nv,nxbd,nvbd,nxtotloc});
 
-  quakins::SplittingShift<uInt,Complex,
+  quakins::SplittingShift<uInt,Real,Real,
     quakins::FluxBalanceMethod> fsSolverV({dv,dt,nv,nxloc,nvbd,nxbd,nvtot});
 
   quakins::QuantumSplittingShift<uInt,Real,DIM_V> 

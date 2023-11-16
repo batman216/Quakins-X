@@ -1,38 +1,56 @@
+/**
+ * @file      fft.hpp 
+ * @brief     A fft API based on cufft
+ * @author    Tian-Xing Hu
+ * @copyright Tian-Xing Hu 2023
+ */
+
 #pragma once 
 #include <cufft.h>
-
-#ifndef CUFFT_CALL
-#define CUFFT_CALL( call )                                                    \
-    {                                                                         \
-        auto status = static_cast<cufftResult>( call );                       \
-        if ( status != CUFFT_SUCCESS )                                        \
-            fprintf( stderr,                                                  \
-                     "ERROR: CUFFT call \"%s\" in line %d of file %s failed " \
-                     "with "                                                  \
-                     "code (%d).\n",                                          \
-                     #call,                                                   \
-                     __LINE__,                                                \
-                     __FILE__,                                                \
-                     status );                                                \
-    }
-#endif  // CUFFT_CALL
-
+#include "fft_traits.hpp"
 
 namespace quakins {
 
 
-template <typename val_type>
-class FFT_traits;
+void fft_exec_forward(cufftHandle &plan, cufftReal* in, cufftComplex* out) {
+    CUFFT_CALL( cufftExecR2C(plan,in,out) );
+}
 
-template <>
-class FFT_traits<float> {
-  const cufftType forward = CUFFT_R2C;
-  const cufftType backward = CUFFT_C2R;
+void fft_exec_forward(cufftHandle &plan, cufftDoubleReal* in, cufftDoubleComplex* out) {
+    CUFFT_CALL( cufftExecD2Z(plan,in,out) );
+}
+
+void fft_exec_forward(cufftHandle &plan, cufftComplex* in, cufftComplex* out) {
+    CUFFT_CALL( cufftExecC2C(plan,in,out,CUFFT_FORWARD) );
+}
+
+void fft_exec_forward(cufftHandle &plan, cufftDoubleComplex* in, cufftDoubleComplex* out) {
+    CUFFT_CALL( cufftExecZ2Z(plan,in,out,CUFFT_FORWARD) );
+}
+
+void fft_exec_inverse(cufftHandle &plan, cufftComplex* in, cufftReal* out) {
+    CUFFT_CALL( cufftExecC2R(plan,in,out) );
+}
+
+void fft_exec_inverse(cufftHandle &plan, cufftDoubleComplex* in, cufftDoubleReal* out) {
+    CUFFT_CALL( cufftExecZ2D(plan,in,out) );
+}
+
+void fft_exec_inverse(cufftHandle &plan, cufftComplex* in, cufftComplex* out) {
+    CUFFT_CALL( cufftExecC2C(plan,in,out,CUFFT_INVERSE) );
+}
+
+void fft_exec_inverse(cufftHandle &plan, cufftDoubleComplex* in, cufftDoubleComplex* out) {
+    CUFFT_CALL( cufftExecZ2Z(plan,in,out,CUFFT_INVERSE) );
+}
+
+template <int fft_rank>
+struct fft_many_args {
+  std::array<int,fft_rank> n;
+  std::array<int,fft_rank> inembed; int istride, idist;
+  std::array<int,fft_rank> onembed; int ostride, odist; 
+  int batch;
 };
-
-
-
-
 
 template <typename idx_type,
           typename val_type, int fft_rank>
@@ -44,65 +62,78 @@ class FFT<idx_type,val_type,1> {
 
   FFT_traits<val_type> fft_type;
 
-  cufftHandle plan_fwd, plan_bwd;
-  val_type norm;
+  cufftHandle plan_fwd, plan_inv;
 
-  idx_type n, n_batch; int  nr, nc;
+  using first_t = fft_pointer_traits<val_type>::first;
+  using second_t = fft_pointer_traits<val_type>::second;
+
+  idx_type n, n_batch, n_bd, n_tot;
+
+
 public:
-  FFT(idx_type n, idx_type n_batch) : n(n), n_batch(n_batch), 
-  nr(static_cast<int>(n)), nc(static_cast<int>(n/2+1)) {
+  FFT(idx_type n, idx_type n_batch, idx_type n_bd) 
+  : n(n), n_batch(n_batch), n_bd(n_bd), n_tot(n+2*n_bd) {
    
-    int Nfft[1] = {nr};
-
-    int Nrnem[1] = {nr}, Ncnem[1] = {nc};
+    int nfft[1] = {static_cast<int>(n)};
+    int ntot[1] = {static_cast<int>(n_tot)};
     
-    CUFFT_CALL(
-    cufftPlanMany(&plan_fwd, 1, Nfft, Nrnem, 1, nr,
-                                      Ncnem, 1, nc,
-                                      fft_type.forward, n_batch));
-    CUFFT_CALL(
-    cufftPlanMany(&plan_bwd, 1, Nfft, Ncnem, 1, nc,
-                                      Nrnem, 1, nr,
-                                      CUFFT_C2R, n_batch));
-    norm = static_cast<val_type>(n);
+    CUFFT_CALL(cufftPlanMany(&plan_fwd, 1, nfft, 
+                             ntot, 1, n_tot,
+                             ntot, 1, n_tot,
+                             fft_type.forward, n_batch));
+    CUFFT_CALL(cufftPlanMany(&plan_inv, 1, nfft, 
+                             ntot, 1, n_tot,
+                             ntot, 1, n_tot,
+                             fft_type.inverse, n_batch));
+  }
+
+  FFT(idx_type n, idx_type n_batch, idx_type n_bd,
+      fft_many_args<1> fmany, fft_many_args<1> imany) 
+  : n(n), n_batch(n_batch), n_bd(n_bd), n_tot(n+2*n_bd) {
+   
+    CUFFT_CALL(cufftPlanMany(&plan_fwd, 1, fmany.n.data(), 
+                             fmany.inembed.data(), fmany.istride, fmany.idist,
+                             fmany.onembed.data(), fmany.ostride, fmany.odist,
+                             fft_type.forward, fmany.batch));
+
+    CUFFT_CALL(cufftPlanMany(&plan_inv, 1, imany.n.data(), 
+                             imany.inembed.data(), imany.istride, imany.idist,
+                             imany.onembed.data(), imany.ostride, imany.odist,
+                             fft_type.inverse, imany.batch));
 
   }
 
-  ~FFT() {
-    cufftDestroy(plan_fwd);
-    cufftDestroy(plan_bwd);
+  ~FFT() { cufftDestroy(plan_fwd); cufftDestroy(plan_inv); }
+
+  void forward(first_t *in_ptr, second_t *out_ptr) {
+    fft_exec_forward(plan_fwd,in_ptr,out_ptr);
+  }
+
+  void inverse(second_t *in_ptr, first_t *out_ptr) {
+    fft_exec_inverse(plan_inv,in_ptr,out_ptr);
   }
 
   template <typename itor_type>
-  void forward(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+  void forward(itor_type in_begin, itor_type out_begin) {
 
-    auto real_ptr = reinterpret_cast<cufftReal*>(
+    auto in_ptr = reinterpret_cast<first_t*>(
                         thrust::raw_pointer_cast(&(*in_begin)));
-    auto comp_ptr = reinterpret_cast<cufftComplex*>(
+    auto out_ptr = reinterpret_cast<second_t*>(
                         thrust::raw_pointer_cast(&(*out_begin)));
  
-    val_type Norm = norm;
-    CUFFT_CALL(cufftExecR2C(plan_fwd, real_ptr, comp_ptr));
+    this->forward(in_ptr,out_ptr);
 
-    auto c_begin = thrust::device_pointer_cast(comp_ptr);
-
-    thrust::for_each(c_begin, c_begin + nc*n_batch,
-                     [Norm] __host__ __device__ 
-                     (cufftComplex& val) { val.x/=Norm; val.y/=Norm; });
-
+    
   }
 
   template <typename itor_type>
-  void backward(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+  void inverse(itor_type in_begin, itor_type out_begin) {
 
-
-    auto real_ptr = reinterpret_cast<cufftReal*>(
+    auto in_ptr = reinterpret_cast<second_t*>(
                         thrust::raw_pointer_cast(&(*out_begin)));
-    auto comp_ptr = reinterpret_cast<cufftComplex*>(
+    auto out_ptr = reinterpret_cast<first_t*>(
                         thrust::raw_pointer_cast(&(*in_begin)));
-   
-    CUFFT_CALL(cufftExecC2R(plan_bwd, comp_ptr, real_ptr));
-
+    this->inverse(in_ptr,out_ptr);
   }
 
 };
@@ -111,7 +142,7 @@ public:
 template <typename idx_type, typename val_type>
 class FFT<idx_type,val_type,2> {
 
-  cufftHandle plan_fwd, plan_bwd;
+  cufftHandle plan_fwd, plan_inv;
   val_type norm;
 
   using idx_array = std::array<idx_type,2>;
@@ -131,7 +162,7 @@ public:
                                       cnembed, 1, cdist,
                                       CUFFT_R2C, n_batch));
       CUFFT_CALL(
-      cufftPlanMany(&plan_bwd, 2, nv, cnembed, 1, cdist,
+      cufftPlanMany(&plan_inv, 2, nv, cnembed, 1, cdist,
                                       rnembed, 1, rdist,
                                       CUFFT_C2R, n_batch));
       norm = static_cast<val_type>((n[0]-2)*n[1]);
@@ -159,14 +190,14 @@ public:
   }
 
   template <typename itor_type>
-  void backward(itor_type in_begin, itor_type in_end, itor_type out_begin) {
+  void inverse(itor_type in_begin, itor_type in_end, itor_type out_begin) {
 
     auto real_ptr = reinterpret_cast<cufftReal*>(
                         thrust::raw_pointer_cast(&(*out_begin)));
     auto comp_ptr = reinterpret_cast<cufftComplex*>(
                         thrust::raw_pointer_cast(&(*in_begin)));
    
-    CUFFT_CALL(cufftExecC2R(plan_bwd, comp_ptr, real_ptr));
+    CUFFT_CALL(cufftExecC2R(plan_inv, comp_ptr, real_ptr));
 
   }
 

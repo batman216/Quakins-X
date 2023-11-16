@@ -4,7 +4,7 @@
 
 @ time --------------------------------*
 
-step_total        = 2000
+step_total        = 100
 dt                = 0.02
 
 @ time --------------------------------*
@@ -18,14 +18,14 @@ nv2               =  50
 
 nx1_ghost         =  5
 nx2_ghost         =  5
-nv1_ghost         =  0
+nv1_ghost         =  5
 nv2_ghost         =  0
 
 x1min             =  0
 x1max             =  20
 x2min             =  0
 x2max             =  50
-v1min             =  0
+v1min             = -10
 v1max             =  10
 v2min             = -10
 v2max             =  10
@@ -34,31 +34,25 @@ v2max             =  10
 
 @ quantum -----------------------------*
 
-hbar              =  1
+hbar              =  0
 
 @ quantum -----------------------------*
 
 
 @ runtime ------------------------------*
 
-copytobatman =  0,100, cp ff@* dens1.qout potn1.qout /mnt/c/data_process/
+copytobatman =  0,20, cp ff@* dens1.qout potn1.qout /mnt/c/data_process/
 
 @ runtime ------------------------------*
 
 @ IO_control ---------------------------*
 
-large_file_intp   =  100
+large_file_intp   =  20
 small_file_intp   =  1
 x_dot_probe       =  200
 
 @ IO_control ---------------------------*
 
-@ test particle -----------------------*
-
-Z                 =  1
-vp                =  1
-
-@ test particle -----------------------*
 
 # -------------- initial shapes ----------------- #
 

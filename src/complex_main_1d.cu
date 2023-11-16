@@ -25,6 +25,7 @@
 #include "include/gizmos.hpp"
 #include "include/diagnosis.hpp"
 #include "include/QuantumSplittingShift.hpp"
+#include "include/fft.hpp"
 
 using uInt = std::size_t;
 using Real = double;
@@ -98,13 +99,24 @@ int main(int argc, char* argv[]) {
                     v_coord.begin(),
                     [vmin,dv](uInt idx) { return vmin+0.5*dv+idx*dv; });
 
-
   quakins::Probe diag(p);
 
   quakins::ReorderCopy<uInt,Complex,2> rocopy_fwd({nvtot,nxtotloc},{1,0});
   quakins::ReorderCopy<uInt,Complex,2> rocopy_bwd({nxtotloc,nvtot},{1,0});
   
-  rocopy_fwd(f.begin(),f.end(),f_avatar.begin());
+ // rocopy_fwd(f.begin(),f.end(),f_avatar.begin());
+
+  quakins::fft_many_args<1> fmany{{nx},{nx},nvtot,1,{nx},nvtot,1,nvtot},
+                            imany{{nx},{nx},nvtot,1,{nx},nvtot,1,nvtot};
+  quakins::FFT<uInt,Complex,1> fft(nx,nv,nxbd,fmany,imany);
+  fft.forward(f.begin()+nvtot*nxbd,f_avatar.begin()+nvtot*nxbd);
+
+  thrust::transform(f_avatar.begin(),f_avatar.end(),f_p.begin(),
+                        []__host__ __device__ (Complex& val)
+                        { return val.real(); });
+  thrust::copy(f_p.begin(),f_p.end(),
+               std::ostream_iterator<Real>(fout," "));
+
   
   quakins::Boundary<uInt,PeriodicBoundary> x_boundary(nx,nxbd);
   fsSolverX.prepare(v_coord);
@@ -112,12 +124,6 @@ int main(int argc, char* argv[]) {
   for (int step=1; step<p->stop_at; step++){
 
     if (step==100) {
-      thrust::transform(f_avatar.begin(),f_avatar.end(),f_p.begin(),
-                        []__host__ __device__ (Complex& val)
-                        { return val.real(); });
-
-      thrust::copy(f_p.begin(),f_p.end(),
-                   std::ostream_iterator<Real>(fout," "));
     }
     __THE_FOLLOWING_CODE_ONLY_RUN_ON_RANK0__
     std::cout << step << std::endl;

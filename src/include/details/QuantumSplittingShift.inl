@@ -56,7 +56,7 @@ void QuantumSplittingShift<idx_type,val_type,1>::prepare(Container &con) {
   cudaMemcpyToArray(phi_tex, 0, 0, devPtr, 
                     p.nx*sizeof(val_type), cudaMemcpyDeviceToDevice);
   
-  this->fft = new FFT<idx_type,val_type,1>(p.nv+2*p.nvbd,p.nxloc+2*p.nxbd);
+  this->fft = new FFT<idx_type,val_type,1>(p.nv+2*p.nvbd,p.nxloc+2*p.nxbd,0);
 
 }
 
@@ -86,7 +86,7 @@ advance(Container& con1, Container& con2) {
 
   cudaTextureObject_t tex = tex_obj;
 
-  fft->forward(con1.begin(),con1.end(),con2.begin());
+  fft->forward(con1.begin(),con2.begin());
 
   val_type qDt = p.dt/p.hbar;
   val_type qDl = p.hbar*M_PI/(p.Lx*p.Lv);
@@ -104,10 +104,10 @@ advance(Container& con1, Container& con2) {
     /// essence of the quantum mechanical coupling!
     transform(i_begin,i_begin+n_chunk,
               hypercollision.begin(), phase.begin(),
-              [tex,X,qDt,qDl]__host__ __device__
-              (const val_type& l, const val_type& damp)
-              { return damp*qDt*(tex1D<val_type>(tex,X-l*qDl)
-                                -tex1D<val_type>(tex,X+l*qDl)); });
+              [tex,X,qDt,qDl] __device__
+              (const val_type l, const val_type damp)->val_type
+              { return damp*qDt*(tex1D<float>(tex,(float)(X-l*qDl))
+                                -tex1D<float>(tex,(float)(X+l*qDl))); });
 
     transform(thrust::device,
               c_ptr+n_chunk*i,
@@ -115,8 +115,9 @@ advance(Container& con1, Container& con2) {
               c_ptr+n_chunk*i, exp_evolve());
 
   }
-
-  fft->backward(con2.begin(),con2.end(),con1.begin());
-
+  
+  fft->inverse(con2.begin(),con1.begin());
+  val_type norm = static_cast<val_type>(p.nv+p.nvbd*2);
+  thrust::for_each(con1.begin(),con1.end(),[norm]__device__(val_type& val){val/=norm;});
 }  
 

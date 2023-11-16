@@ -41,6 +41,20 @@ struct ParallelCommunicator {
   }
 };
 
+template <typename val_type> 
+struct nccl_traits {
+  ncclDataType_t name;
+
+  nccl_traits() {
+    if constexpr (std::is_same<val_type,float>::value) 
+      name = ncclFloat;
+    else if constexpr(std::is_same<val_type,double>::value)
+      name = ncclDouble;
+    else {}
+
+  }
+  
+};
 
 
 template <typename idx_type, typename val_type>
@@ -48,6 +62,7 @@ struct PhaseSpaceParallelCommute {
 
   ParallelCommunicator<idx_type,val_type> *para;
 
+  nccl_traits<val_type> ncclType;
   const idx_type comm_size;
   const int l_rank, r_rank;
   thrust::device_vector<val_type> l_send_buff, l_recv_buff, 
@@ -74,16 +89,16 @@ struct PhaseSpaceParallelCommute {
                  l_send_buff.begin());
     ncclGroupStart();// <--
     ncclSend(thrust::raw_pointer_cast(l_send_buff.data()),
-             comm_size, ncclFloat, l_rank, para->comm, para->s); 
+             comm_size, ncclType.name, l_rank, para->comm, para->s); 
     ncclRecv(thrust::raw_pointer_cast(r_recv_buff.data()),
-             comm_size, ncclFloat, r_rank, para->comm, para->s); 
+             comm_size, ncclType.name, r_rank, para->comm, para->s); 
     ncclGroupEnd();
 
     ncclGroupStart();// -->
     ncclSend(thrust::raw_pointer_cast(r_send_buff.data()),
-             comm_size, ncclFloat, r_rank, para->comm, para->s); 
+             comm_size, ncclType.name, r_rank, para->comm, para->s); 
     ncclRecv(thrust::raw_pointer_cast(l_recv_buff.data()),
-             comm_size, ncclFloat, l_rank, para->comm, para->s); 
+             comm_size, ncclType.name, l_rank, para->comm, para->s); 
     ncclGroupEnd();
 
     thrust::copy(l_recv_buff.begin(),l_recv_buff.end(),itor_begin);

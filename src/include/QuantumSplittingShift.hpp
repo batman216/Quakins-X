@@ -13,7 +13,6 @@ struct Packet_quantum;
 
 template <typename idx_type, typename val_type>
 struct Packet_quantum<idx_type,val_type,1>;
-
  
 
 namespace quakins {
