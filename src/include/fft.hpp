@@ -87,9 +87,7 @@ public:
                              fft_type.inverse, n_batch));
   }
 
-  FFT(idx_type n, idx_type n_batch, idx_type n_bd,
-      fft_many_args<1> fmany, fft_many_args<1> imany) 
-  : n(n), n_batch(n_batch), n_bd(n_bd), n_tot(n+2*n_bd) {
+  FFT(fft_many_args<1> fmany, fft_many_args<1> imany) {
    
     CUFFT_CALL(cufftPlanMany(&plan_fwd, 1, fmany.n.data(), 
                              fmany.inembed.data(), fmany.istride, fmany.idist,

@@ -35,7 +35,7 @@ INPUT = quakins.input
 
 $(shell mkdir -p ${BLD})
 
-MACRO = -D ANYHOW,HIGH_POISS,QUANTUM,PARALLEL
+MACRO = -D ANYHOW,HIGH_POISS,PARALLEL,QUANTUM
 
 CPP = ${wildcard ${SRC}/*.cpp}
 CU  = ${wildcard ${SRC}/*.cu}

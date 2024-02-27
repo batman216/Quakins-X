@@ -23,7 +23,6 @@ template <typename idx_type,typename r_type, typename c_type>
 template <typename Container>
 void FluxBalanceMethod<idx_type,r_type,c_type>::prepare(Container& con) {
   
-  
   thrust::transform(con.begin(),con.end(),alpha.begin(),
                     [*this](r_type v){ return v * p.dt / p.dx;  });
 

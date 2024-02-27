@@ -54,23 +54,39 @@ void QuantumSplittingShift<idx_type,val_type,1>::prepare(Container &con) {
 
   auto devPtr = thrust::raw_pointer_cast(con.data());
   cudaMemcpyToArray(phi_tex, 0, 0, devPtr, 
-                    p.nx*sizeof(val_type), cudaMemcpyDeviceToDevice);
-  
-  this->fft = new FFT<idx_type,val_type,1>(p.nv+2*p.nvbd,p.nxloc+2*p.nxbd,0);
+                    p.nx*sizeof(float), cudaMemcpyDeviceToDevice);
+ 
+  int nfft = p.nv+2*p.nvbd;
+  int nc = nfft/2+1, nr = nfft;
+  int nbatch = p.nxloc+2*p.nxbd;
+  fft_many_args<1> fmany{{nfft},{nr},1,nr,{nc},1,nc,nbatch},
+                   imany{{nfft},{nc},1,nc,{nr},1,nr,nbatch};
+
+  this->fft = new FFT<idx_type,val_type,1>(fmany,imany);
 
 }
 
+
+template<typename val_type> struct fft_complex_traist;
+
+template<> struct fft_complex_traist<float> {
+  using value_type = cufftComplex;
+};
+
+template<> struct fft_complex_traist<double> {
+  using value_type = cufftDoubleComplex;
+};
+
 /// calculate f = f*exp(i*phase) in complex plane
 struct exp_evolve {
-  
-  template <typename val_type>
-  __host__ __device__
-  cufftComplex operator()(cufftComplex val, 
-                          val_type phase) {
-    cufftComplex buffer;
+
+  template<typename r_type,typename c_type> __device__
+  c_type operator()(c_type val,r_type phase) {
+    c_type buffer;
     buffer.x = val.x*cos(phase) - val.y*sin(phase); 
     buffer.y = val.y*cos(phase) + val.x*sin(phase); 
     return buffer; 
+
   }
 
 };
@@ -106,8 +122,8 @@ advance(Container& con1, Container& con2) {
               hypercollision.begin(), phase.begin(),
               [tex,X,qDt,qDl] __device__
               (const val_type l, const val_type damp)->val_type
-              { return damp*qDt*(tex1D<float>(tex,(float)(X-l*qDl))
-                                -tex1D<float>(tex,(float)(X+l*qDl))); });
+              { return damp*qDt*(tex1D<float>(tex,(X-l*qDl))
+                                -tex1D<float>(tex,(X+l*qDl))); });
 
     transform(thrust::device,
               c_ptr+n_chunk*i,
@@ -118,6 +134,6 @@ advance(Container& con1, Container& con2) {
   
   fft->inverse(con2.begin(),con1.begin());
   val_type norm = static_cast<val_type>(p.nv+p.nvbd*2);
-  thrust::for_each(con1.begin(),con1.end(),[norm]__device__(val_type& val){val/=norm;});
+  //thrust::for_each(con1.begin(),con1.end(),[norm]__device__(val_type& val){val/=norm;});
 }  
 

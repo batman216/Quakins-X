@@ -7,6 +7,19 @@
 
 namespace quakins {
 
+
+template <typename T>
+void simple_print(std::string file_name, const T& data) {
+
+  typedef typename T::value_type val_type;
+  std::ofstream ofs(file_name+".qout",std::ios::out);
+  thrust::copy(data.begin(),data.end(),
+               std::ostream_iterator<val_type>(ofs,"\t"));
+  ofs.close();
+  std::cout<< file_name+" printed." << std::endl;
+}
+
+
 namespace diagnosis {
 
 

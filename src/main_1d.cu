@@ -27,8 +27,13 @@
 #include "include/QuantumSplittingShift.hpp"
 
 using uInt = std::size_t;
-using Real = double;
+using Real = float;
 using Complex = thrust::complex<Real>;
+
+#define DIM_X 1
+#define DIM_V 1
+#define BLOCK 1
+
 
 int main(int argc, char* argv[]) {
 
@@ -61,12 +66,10 @@ int main(int argc, char* argv[]) {
   thrust::device_vector<Real> f,f_avatar(p->n_whole_loc+2*nxtotloc);
 
   quakins::PhaseSpaceInitialization<uInt,Real,DIM_X,DIM_V,
-                                    quakins::SingleFermiDirac> ps_init(p);
+                                    quakins::TwoMaxwellStream> ps_init(p);
   ps_init(f);
    
   quakins::PhaseSpaceParallelCommute<uInt,Real> ps_nccl_com(nxbd*nvtot,para);
-  std::cout << nvtot << " " << nxbd << std::endl;
-
   
   quakins::Integrator<Real> integrate(nvtot,nxloc,
                                       p->vmin[0]-dv*nvbd,p->vmax[0]+dv*nvbd);
@@ -96,7 +99,6 @@ int main(int argc, char* argv[]) {
                     v_coord.begin(),
                     [vmin,dv](uInt idx) { return vmin+0.5*dv+idx*dv; });
 
-
   quakins::Probe diag(p);
 
   quakins::ReorderCopy<uInt,Real,2> rocopy_fwd({nvtot,nxtotloc},{1,0});
@@ -116,7 +118,6 @@ int main(int argc, char* argv[]) {
     std::cout << step << std::endl;
     __THE_ABOVE_CODE_ONLY_RUN_ON_RANK0__
 
-    diag.print(step,f,dens_e,potn,Efield);
     /// set boundary condition for the x direction
     //x_boundary(f_avatar.begin(),f_avatar.end());
     
@@ -132,6 +133,7 @@ int main(int argc, char* argv[]) {
     /// calculate the density by integration
     integrate(f.begin()+nxbd*nvtot,dens_e_loc.begin());
     dens_allgather(dens_e.begin(),dens_e_loc.begin());
+    
     /// sum up densities of different species
     using namespace thrust::placeholders;
     thrust::transform(dens_e.begin(),dens_e.end(),
@@ -158,6 +160,7 @@ int main(int argc, char* argv[]) {
     /// advance the x direction
     fsSolverX.advance(f_avatar);
 
+    diag.print(step,f,dens_e,potn,Efield);
   } 
 
 }

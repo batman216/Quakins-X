@@ -37,17 +37,11 @@ struct Parameters {
 
   // length of each direction in phase space
   std::array<val_type,dim> length;
-  
-  std::string x1_shape, x2_shape, v1_shape, v2_shape;
-  // characteristic velocties
-  val_type v1, v2, v3, v4;
 
   // normalize Planck's constant
   val_type hbar,Theta;
 
   idx_type dens_print_intv;
-
-  std::string dens_profile_str = "GaussShape";
 
   std::unordered_map<std::string,LinuxCommand> runtime_commands;
 };

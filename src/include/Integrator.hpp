@@ -32,7 +32,7 @@ struct Integrator {
 
     val_type C = this->coeff;
     auto zitor_begin = thrust::make_zip_iterator(thrust::make_tuple(
-                          thrust::make_counting_iterator(0),in_begin));
+                        thrust::make_counting_iterator(0),in_begin));
 
     typedef thrust::tuple<int,val_type> Tuple;
     auto titor_begin = make_transform_iterator(zitor_begin,

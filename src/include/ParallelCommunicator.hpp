@@ -106,6 +106,8 @@ struct PhaseSpaceParallelCommute {
 
     cudaStreamSynchronize(para->s);
   }
+
+
 };
 
 template <typename idx_type, typename val_type>
@@ -113,10 +115,12 @@ struct DensityAllGather {
 
   ParallelCommunicator<idx_type,val_type> *para;
 
+  nccl_traits<val_type> ncclType;
+
   const idx_type dens_size;
 
   DensityAllGather(idx_type dens_size, 
-                ParallelCommunicator<idx_type,val_type> *para) 
+                   ParallelCommunicator<idx_type,val_type> *para) 
   : dens_size(dens_size), para(para) {}
 
 
@@ -127,31 +131,27 @@ struct DensityAllGather {
 
     for (int r=0; r<para->mpi_size; r++) {
       ncclSend(thrust::raw_pointer_cast(&(*send_begin)), 
-               dens_size,ncclFloat,r,para->comm,para->s);
+               dens_size,ncclType.name,r,para->comm,para->s);
       ncclRecv(thrust::raw_pointer_cast(&(*recv_begin))+r*dens_size, 
-               dens_size,ncclFloat,r,para->comm,para->s);
+               dens_size,ncclType.name,r,para->comm,para->s);
     }
     ncclGroupEnd();
 
     cudaStreamSynchronize(para->s);
   }
-
-
 };
-
 
 
 template <typename idx_type, typename val_type>
 struct DensityGather {
 
   ParallelCommunicator<idx_type,val_type> *para;
-
+  nccl_traits<val_type> ncclType;
   const idx_type dens_size;
 
   DensityGather(idx_type dens_size, 
                 ParallelCommunicator<idx_type,val_type> *para) 
   : dens_size(dens_size), para(para) {}
-
 
   template <typename itor_type>
   void operator()(itor_type recv_begin, itor_type send_begin) {
@@ -161,10 +161,10 @@ struct DensityGather {
     if (para->mpi_rank==0) {
       for (int r=0; r<para->mpi_size; r++)
         ncclRecv(thrust::raw_pointer_cast(&(*recv_begin))+r*dens_size, 
-                 dens_size,ncclFloat,r,para->comm,para->s);
+                 dens_size,ncclType.name,r,para->comm,para->s);
     }
     ncclSend(thrust::raw_pointer_cast(&(*send_begin)), 
-             dens_size,ncclFloat,0,para->comm,para->s);
+             dens_size,ncclType.name,0,para->comm,para->s);
 
     ncclGroupEnd();
 
@@ -182,6 +182,7 @@ struct PotentialBroadcast {
 
   const idx_type pot_size;
 
+  nccl_traits<val_type> ncclType;
   PotentialBroadcast(idx_type pot_size, 
                 ParallelCommunicator<idx_type,val_type> *para) 
   : pot_size(pot_size), para(para) {}
@@ -193,13 +194,12 @@ struct PotentialBroadcast {
     ncclGroupStart();
 
     ncclBcast(thrust::raw_pointer_cast(&(*itor_begin)), 
-              pot_size,ncclFloat,0,para->comm,para->s);
+              pot_size,ncclType.name,0,para->comm,para->s);
 
     ncclGroupEnd();
 
     cudaStreamSynchronize(para->s);
   }
-
 
 };
 

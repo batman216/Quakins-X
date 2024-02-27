@@ -85,7 +85,6 @@ public:
     using idx_XV_t = std::array<idx_type,dim_x+dim_v>;
     using val_XV_t = std::array<val_type,dim_x+dim_v>;
     using thrust::transform;
-
    
     idx_XV_t num,num_ghost;
     val_XV_t low_bound, interval;
@@ -108,7 +107,8 @@ public:
 
     idx_type n_shift = p->mpi_rank * p->n_whole_loc 
                      - p->mpi_rank * 2*num_ghost[dim_x+dim_v-1]
-                     * std::accumulate(num.begin(),num.end()-1,1,std::multiplies<idx_type>()); 
+                     * std::accumulate(num.begin(),num.end()-1,1,
+                                       std::multiplies<idx_type>()); 
     
     storge.resize(p->n_whole_loc);
 
