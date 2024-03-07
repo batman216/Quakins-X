@@ -69,7 +69,6 @@ class FFT<idx_type,val_type,1> {
 
   idx_type n, n_batch, n_bd, n_tot;
 
-
 public:
   FFT(idx_type n, idx_type n_batch, idx_type n_bd) 
   : n(n), n_batch(n_batch), n_bd(n_bd), n_tot(n+2*n_bd) {
@@ -111,6 +110,7 @@ public:
     fft_exec_inverse(plan_inv,in_ptr,out_ptr);
   }
 
+
   template <typename itor_type>
   void forward(itor_type in_begin, itor_type out_begin) {
 
@@ -120,8 +120,6 @@ public:
                         thrust::raw_pointer_cast(&(*out_begin)));
  
     this->forward(in_ptr,out_ptr);
-
-    
   }
 
   template <typename itor_type>
@@ -132,6 +130,7 @@ public:
     auto out_ptr = reinterpret_cast<first_t*>(
                         thrust::raw_pointer_cast(&(*in_begin)));
     this->inverse(in_ptr,out_ptr);
+
   }
 
 };

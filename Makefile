@@ -43,7 +43,7 @@ HPP = ${wildcard ${SRC}/include/*.hpp}
 
 CPPOBJ = ${patsubst ${SRC}/%.cpp,${BLD}/%.o,${CPP}}
 
-MAIN = main_1d
+MAIN = main_1d1v
 
 MAINCU = ${SRC}/${MAIN}.cu
 MAINO = ${BLD}/${MAIN}.o
@@ -58,7 +58,7 @@ ${BLD}/%.o: ${SRC}/%.cpp
 	${CXX} ${MACRO} ${SUPPRESS} ${CXXFLAG} ${INCFLAG} ${NVCFlAG} -c $< -o $@
 
 mpirun: ${BLD}/${EXE} ${INPUT}
-	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 2 ./${EXE}
+	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && mpirun -n 6 ./${EXE}
 
 run: ${BLD}/${EXE} ${INPUT}
 	mkdir -p ${RUN} && cp $^ ${RUN} && cd ${RUN} && ./${EXE}

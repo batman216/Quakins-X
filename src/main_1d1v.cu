@@ -5,26 +5,7 @@
  * @copyright Tian-Xing Hu 2023
  */
 
-#include <iostream>
-#include <mpi.h>
-#include <thrust/complex.h>
-#include <thrust/device_vector.h>
-#include <thrust/transform.h>
-#include <thrust/execution_policy.h>
-#include <thrust/host_vector.h>
-#include <thrust/iterator/constant_iterator.h>
-
-#include "include/Parameters.hpp"
-#include "include/PhaseSpaceInitialization.hpp"
-#include "include/ParallelCommunicator.hpp"
-#include "include/Integrator.hpp"
-#include "include/PoissonSolver.hpp"
-#include "include/SplittingShift.hpp"
-#include "include/ReorderCopy.hpp"
-#include "include/Boundary.hpp"
-#include "include/gizmos.hpp"
-#include "include/diagnosis.hpp"
-#include "include/QuantumSplittingShift.hpp"
+#include "include/quakins_headers.hpp"
 
 using uInt = std::size_t;
 using Real = float;
@@ -32,8 +13,6 @@ using Complex = thrust::complex<Real>;
 
 #define DIM_X 1
 #define DIM_V 1
-#define BLOCK 1
-
 
 int main(int argc, char* argv[]) {
 
@@ -89,7 +68,8 @@ int main(int argc, char* argv[]) {
     quakins::FluxBalanceMethod> fsSolverV({dv,dt,nv,nxloc,nvbd,nxbd,nvtot});
 
   quakins::QuantumSplittingShift<uInt,Real,DIM_V> 
-    quantumSolver({p->hbar,p->time_step, Lv,Lx,nv,nvbd,nxloc,nxbd,nvtot,mpi_rank,mpi_size});
+    quantumSolver({p->hbar,p->time_step, 
+                   Lv,Lx,nv,nvbd,nxloc,nxbd,nvtot,mpi_rank,mpi_size});
 
   thrust::host_vector<Real> v_coord(nv), _F(nxloc);
 
@@ -144,13 +124,12 @@ int main(int argc, char* argv[]) {
     solvePoissonEq(dens_tot, potn, Efield);
     //solveEfield(dens_tot, Efield);
 
-    thrust::copy(Efield.begin()+mpi_rank*nxloc,Efield.begin()+(mpi_rank+1)*nxloc,_F.begin()); 
-    thrust::for_each(_F.begin(),_F.end(),[](Real& val){ val=-val; }); 
-
-    if (p->hbar==0) {
+    if (p->hbar==0) { /// classical
+      thrust::copy(Efield.begin()+mpi_rank*nxloc,Efield.begin()+(mpi_rank+1)*nxloc,_F.begin()); 
+      thrust::for_each(_F.begin(),_F.end(),[](Real& val){ val=-val; }); 
       fsSolverV.prepare(_F);
       fsSolverV.advance(f);
-    } else {
+    } else { /// quantum
       quantumSolver.prepare(potn);
       quantumSolver.advance(f,f_avatar);
     }
