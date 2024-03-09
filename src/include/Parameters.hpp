@@ -7,6 +7,7 @@
 #include <sstream>
 #include <exception>
 #include <numeric>
+#include <algorithm>
 #include "quakins_exceptions.hpp"
 #include "quakins_macros.hpp"
 #include "util.hpp"
@@ -45,7 +46,7 @@ struct Parameters {
 
   // --------- time box ----------
   idx_type stop_at;
-  val_type time_step;
+  val_type time_factor,time_step;
   // -----------------------------
 
   // ------- quantum box ---------

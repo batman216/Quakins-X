@@ -18,7 +18,7 @@ readBox(std::ifstream& is,std::string box_name) {
   std::map<string, string> input_map;
 
   getline(is, s); 
-  while (s.find(box_name)==string::npos) {
+  while (s.find("@ "+box_name)==string::npos) {
     try { 
       getline(is, s);  
       if (s.find("the end")!=string::npos) { 
@@ -30,7 +30,7 @@ readBox(std::ifstream& is,std::string box_name) {
     }
   }
 
-  for (getline(is, s); s.find(box_name)==string::npos;
+  for (getline(is, s); s.find("@ "+box_name)==string::npos;
        getline(is, s)) {
 
     auto equ = s.find('=');
@@ -78,12 +78,11 @@ void Parameters<idx_type,val_type,dim_x,dim_v>::readTimeBox(std::string filename
   std::ifstream input_file(filename);
   auto the_map = readBox(input_file, "time");
 
-  assign(time_step, "dt", the_map);
+  assign(time_factor, "time_factor", the_map);
   assign(stop_at, "step_total", the_map);
-
+  
   __THE_FOLLOWING_CODE_ONLY_RUN_ON_RANK0__
     
-  std::cout << "dt=" << time_step << std::endl;
   std::cout << "This shot is about to run " << stop_at << " steps" << std::endl;
 
   __THE_ABOVE_CODE_ONLY_RUN_ON_RANK0__
@@ -139,6 +138,13 @@ readDomainBox(std::string filename) {
   }
   input_file.close();
 
+  auto VMAX_itor = std::max_element(vmax.begin(),vmax.end(),[](auto a, auto b)
+                                    { return std::abs(a) < std::abs(b);});
+  val_type dt_norm = dx[std::distance(vmax.begin(), VMAX_itor)]
+                     /static_cast<val_type>(*VMAX_itor);
+
+  this->time_step  = this->time_factor * dt_norm;
+
 #ifdef PARALLEL
   n_main_x_loc[dim_para] /= mpi_size;
   n_all_x[dim_para] = n_main_x[dim_para]+2*mpi_size*n_ghost_x[dim_para];
@@ -157,6 +163,7 @@ readDomainBox(std::string filename) {
 
   __THE_FOLLOWING_CODE_ONLY_RUN_ON_RANK0__
   
+  std::cout << "dt = " << time_step << std::endl; 
   std::cout << "a single phase space fluid has " << n_whole << " numbers" << std::endl; 
   std::cout << "a single phase space fluid costs " 
   << 2*n_whole*sizeof(val_type)/1073741824.0 << "GB of memory, " 

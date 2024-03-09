@@ -4,16 +4,19 @@
 
 @ time --------------------------------*
 
-step_total        = 1000
-dt                = 0.05
+step_total       =  6000
+
+# time_factor mean how many cells a fluid element
+# can across at most for a single time step
+time_factor      =  3
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1               =  480
+nx1               =  6000
 nx2               =  40
-nv1               =  300
+nv1               =  2000
 nv2               =  50
 
 nx1_ghost         =  5
@@ -22,7 +25,7 @@ nv1_ghost         =  4
 nv2_ghost         =  0
 
 x1min             =  0
-x1max             =  18
+x1max             =  180
 x2min             =  0
 x2max             =  50
 v1min             = -3
@@ -34,7 +37,7 @@ v2max             =  10
 
 @ quantum -----------------------------*
 
-hbar              = 0.10
+hbar              = 0.1
 
 @ quantum -----------------------------*
 
@@ -47,8 +50,8 @@ copytobatman =  0,20, echo 'haha'
 
 @ IO_control ---------------------------*
 
-large_file_intp   =  10
-small_file_intp   =  1
+large_file_intp   =  120
+small_file_intp   =  5
 x_dot_probe       =  200
 
 @ IO_control ---------------------------*
@@ -58,7 +61,7 @@ x_dot_probe       =  200
 
 @ two_Maxwell ----------------------*
 
-wave_number_norm  =  1
+wave_number_norm  =  10
 wave_length       =  18
 vthermal1         =  0.2
 vthermal2         =  0.2
@@ -66,7 +69,7 @@ vdrift1           = -0.6
 vdrift2           =  0.6
 Amplitude1        =  0.5
 Amplitude2        =  0.5
-ptb               =  0.10001
+ptb               =  0.00010001
 
 @ two_Maxwell ----------------------*
 

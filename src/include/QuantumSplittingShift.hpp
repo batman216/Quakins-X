@@ -28,6 +28,9 @@ class QuantumSplittingShift<idx_type,val_type,1>{
   using Packet = Packet_quantum<idx_type,val_type,1>;
   Packet p;
 
+  /// 构造函数里先算好这些参数
+  val_type qDt, qDl, Dl;
+
   thrust::device_vector<val_type> lambda, phase, hypercollision;
 
   FFT<idx_type,val_type,1> *fft;
@@ -46,6 +49,5 @@ public:
 };
 
 #include "details/QuantumSplittingShift.inl"
-
 
 } // namespace  quakins

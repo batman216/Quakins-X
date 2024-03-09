@@ -1,8 +1,8 @@
 /**
  * @file      main_1d.cu
  * @brief     main file of the quakins 1d1v simualtion
- * @author    Tian-Xing Hu
- * @copyright Tian-Xing Hu 2023
+ * @author    Dr. Hu Tian-Xing (胡天行)
+ * @copyright Hu Tian-Xing 2023
  */
 
 #include "include/quakins_headers.hpp"
@@ -27,10 +27,8 @@ int main(int argc, char* argv[]) {
   auto *para = new quakins::
     ParallelCommunicator<uInt,Real>(mpi_rank,mpi_size,MCW);
 
-
   p->initial();
   
-
   uInt nx = p->n_main_x[0], nv = p->n_main_v[0], 
        nxloc = p->n_main_x_loc[0],
        nxbd = p->n_ghost_x[0], nvbd = p->n_ghost_v[0],
@@ -91,7 +89,6 @@ int main(int argc, char* argv[]) {
   quakins::Boundary<uInt,PeriodicBoundary> x_boundary(nx,nxbd);
   fsSolverX.prepare(v_coord);
 
-  std::puts("main loop starts...");
   for (int step=1; step<p->stop_at; step++){
 
     __THE_FOLLOWING_CODE_ONLY_RUN_ON_RANK0__

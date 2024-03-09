@@ -110,7 +110,6 @@ public:
     fft_exec_inverse(plan_inv,in_ptr,out_ptr);
   }
 
-
   template <typename itor_type>
   void forward(itor_type in_begin, itor_type out_begin) {
 
@@ -118,7 +117,6 @@ public:
                         thrust::raw_pointer_cast(&(*in_begin)));
     auto out_ptr = reinterpret_cast<second_t*>(
                         thrust::raw_pointer_cast(&(*out_begin)));
- 
     this->forward(in_ptr,out_ptr);
   }
 
@@ -126,11 +124,10 @@ public:
   void inverse(itor_type in_begin, itor_type out_begin) {
 
     auto in_ptr = reinterpret_cast<second_t*>(
-                        thrust::raw_pointer_cast(&(*out_begin)));
-    auto out_ptr = reinterpret_cast<first_t*>(
                         thrust::raw_pointer_cast(&(*in_begin)));
+    auto out_ptr = reinterpret_cast<first_t*>(
+                        thrust::raw_pointer_cast(&(*out_begin)));
     this->inverse(in_ptr,out_ptr);
-
   }
 
 };
