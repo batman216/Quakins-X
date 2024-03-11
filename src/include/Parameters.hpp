@@ -40,7 +40,7 @@ struct Parameters {
   val_X_t dx, Lx, xmin, xmax;
   val_V_t dv, Lv, vmin, vmax;
 
-  idx_type n_whole, n_whole_loc;
+  idx_type nx_whole, nv_whole, n_whole, n_whole_loc;
   idx_type n_whole_main, n_whole_main_loc;
   // -----------------------------
 

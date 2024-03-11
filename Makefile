@@ -43,7 +43,7 @@ HPP = ${wildcard ${SRC}/include/*.hpp}
 
 CPPOBJ = ${patsubst ${SRC}/%.cpp,${BLD}/%.o,${CPP}}
 
-MAIN = main_1d1v
+MAIN = main_2d2v
 
 MAINCU = ${SRC}/${MAIN}.cu
 MAINO = ${BLD}/${MAIN}.o

@@ -13,8 +13,6 @@
 
 #include <iostream>
 
-#include "Weighter.hpp"
-
 namespace quakins {
 
 template<typename val_type>
@@ -32,7 +30,7 @@ struct Integrator {
 
     val_type C = this->coeff;
     auto zitor_begin = thrust::make_zip_iterator(thrust::make_tuple(
-                        thrust::make_counting_iterator(0),in_begin));
+                       thrust::make_counting_iterator(0),in_begin));
 
     typedef thrust::tuple<int,val_type> Tuple;
     auto titor_begin = make_transform_iterator(zitor_begin,
@@ -46,8 +44,7 @@ struct Integrator {
     std::size_t nn = this->n;
     auto binary_pred = [nn]__host__ __device__(int i,int j) { return i/nn==j/nn ; };
 
-    thrust::reduce_by_key(thrust::device,
-                          thrust::make_counting_iterator(0),  // input key
+    thrust::reduce_by_key(thrust::make_counting_iterator(0),  // input key
                           thrust::make_counting_iterator(static_cast<int>(n*n_batch)),
                           titor_begin,                        // input value
                           thrust::make_discard_iterator(),    // output key

@@ -152,11 +152,11 @@ readDomainBox(std::string filename) {
 #endif
 
   /// the total data number of a single species
-  n_whole =  std::accumulate(n_all_x.begin(),n_all_x.end(),1,std::multiplies<idx_type>())
-            *std::accumulate(n_all_v.begin(),n_all_v.end(),1,std::multiplies<idx_type>());
+  nx_whole = std::accumulate(n_all_x.begin(),n_all_x.end(),1,std::multiplies<idx_type>());
+  nv_whole = std::accumulate(n_all_v.begin(),n_all_v.end(),1,std::multiplies<idx_type>());
+  n_whole = nx_whole * nv_whole;
   n_whole_main =  std::accumulate(n_main_x.begin(),n_main_x.end(),1,std::multiplies<idx_type>())
                  *std::accumulate(n_main_v.begin(),n_main_v.end(),1,std::multiplies<idx_type>());
-
   n_whole_loc = n_whole/mpi_size;
   n_whole_main_loc = n_whole_main/mpi_size;
 

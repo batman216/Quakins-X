@@ -49,14 +49,14 @@ struct cal_reorder_idx {
 namespace quakins {
 
 template <typename idx_type, typename val_type, int dim>
-class ReorderCopy {
+class PermutationCopy {
 
   typedef std::array<idx_type,dim> int_array;
 
   int_array new_order, n_dim;
 
 public:
-  ReorderCopy(int_array n_dim, int_array new_order) 
+  PermutationCopy(int_array n_dim, int_array new_order) 
     : new_order(new_order),n_dim(n_dim) { }
 
   template <typename in_itor_t, typename out_itor_t>

@@ -79,8 +79,8 @@ int main(int argc, char* argv[]) {
 
   quakins::Probe diag(p);
 
-  quakins::ReorderCopy<uInt,Real,2> rocopy_fwd({nvtot,nxtotloc},{1,0});
-  quakins::ReorderCopy<uInt,Real,2> rocopy_bwd({nxtotloc,nvtot},{1,0});
+  quakins::PermutationCopy<uInt,Real,2> rocopy_fwd({nvtot,nxtotloc},{1,0});
+  quakins::PermutationCopy<uInt,Real,2> rocopy_bwd({nxtotloc,nvtot},{1,0});
   
   ps_nccl_com(f.begin(),f.end());
   rocopy_fwd(f.begin(),f.end(),f_avatar.begin());

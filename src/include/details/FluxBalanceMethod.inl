@@ -2,21 +2,24 @@
 template <typename idx_type, typename r_type, typename c_type>
 struct Packet_fbm {
 
+  int mpi_rank, mpi_size;
   r_type dx, dt; 
   idx_type nx, nv, nxbd, nvbd, nchunk;
+
   idx_type nxtot,nvtot;
 };
 
 namespace quakins {
 
+
 template <typename idx_type,typename r_type, typename c_type>
 FluxBalanceMethod<idx_type,r_type,c_type>::
-FluxBalanceMethod(Packet p) : p(p) {
+FluxBalanceMethod(Packet p) : p(p){
   p.nxtot = p.nx + p.nxbd*2;
   p.nvtot = p.nv + p.nvbd*2;
   alpha.resize(p.nv); shift.resize(p.nv);
   flux.resize(p.nchunk);
-
+  
 }
 
 template <typename idx_type,typename r_type, typename c_type>
@@ -37,7 +40,7 @@ void FluxBalanceMethod<idx_type,r_type,c_type>::prepare(Container& con) {
   
 }
 
-
+/// Flux balance 的插值函数，该插值函数的精度直接决定Flux balance方法的精度
 template<typename r_type, typename c_type>
 struct intp_intg {
 
@@ -67,13 +70,18 @@ void FluxBalanceMethod<idx_type,r_type,c_type>::advance(Container& con) {
   auto flux_begin = flux.begin() + p.nxbd - 1,
        flux_end   = flux.end()   - p.nxbd;
 
+  auto main_chunk = p.nchunk-2*p.nxbd;
+  /// chunk 去掉前后两个小边界之后长度
+  /// (大于二维时中间还有很多边界没有去掉,不用管他们)
+
   int sign_v, I; bool v_is_pos; r_type a;  
 
+  std::ofstream testout("test_flux@"+std::to_string(p.mpi_rank),std::ios::out);
   for (std::size_t i=p.nvbd; i<p.nv+p.nvbd; i++) {
     I = i - p.nvbd;
-
+    
     if (p.nxbd<std::abs(shift[I])+1)
-      std::puts("warning!");
+      std::puts("FBM warning!");
 
     sign_v = SIGN(alpha[I]);
     v_is_pos = sign_v==1? true:false;
@@ -86,22 +94,21 @@ void FluxBalanceMethod<idx_type,r_type,c_type>::advance(Container& con) {
     /// nx cells indicate nx+1 faces
 
     a = v_is_pos? alpha[I]:1+alpha[I];
-
     thrust::fill(flux.begin(),flux.end(),0.); // clear the buffer
 
     intp_intg<r_type,c_type> intp(a); // prepare the interpolation algorithm
     auto zitor_shift = make_zip_iterator(thrust::make_tuple(
                          itor_shift-1, itor_shift, itor_shift+1));
-    thrust::transform(zitor_shift, zitor_shift+p.nx+1, flux_begin, intp);
+    thrust::transform(zitor_shift, zitor_shift+main_chunk+1, flux_begin, intp);
  
     for (std::size_t k=0; k<std::abs(shift[I]); k++) 
       thrust::transform(flux_begin, flux_end,
                         itor_shift + sign_v*k + (v_is_pos?1:0),
                         flux_begin, _1+sign_v*_2);
-    
     // calculate f[i](t+dt)=f[i](t) + flux[i-1/2] - flux[i+1/2]
     thrust::adjacent_difference(flux.begin(),flux.end(),flux.begin());
-    thrust::transform(itor_left+p.nxbd,itor_left+p.nxbd+p.nx,
+
+    thrust::transform(itor_left+p.nxbd,itor_left+p.nxbd+main_chunk,
                       flux.begin()+p.nxbd,itor_left+p.nxbd, _1-_2);
 
   }

@@ -10,6 +10,7 @@ template <typename val_type, int dim,
 struct shape_packet_traits;
 
 
+#include "initial_shapes/TestShape.inl"
 #include "initial_shapes/SingleMaxwell.inl"
 #include "initial_shapes/SingleFermiDirac.inl"
 #include "initial_shapes/TwoMaxwellStream.inl"

@@ -4,40 +4,40 @@
 
 @ time --------------------------------*
 
-step_total       =  6000
+step_total       =  30
 
 # time_factor mean how many cells a fluid element
 # can across at most for a single time step
-time_factor      =  3
+time_factor      =  2.5
 
 @ time --------------------------------*
 
 @ domain ------------------------------*
 
-nx1               =  6000
-nx2               =  40
-nv1               =  2000
-nv2               =  50
+nx1               =  100
+nx2               =  180
+nv1               =  60
+nv2               =  60
 
 nx1_ghost         =  5
 nx2_ghost         =  5
 nv1_ghost         =  4
-nv2_ghost         =  0
+nv2_ghost         =  4
 
 x1min             =  0
-x1max             =  180
+x1max             =  18
 x2min             =  0
-x2max             =  50
+x2max             =  36
 v1min             = -3
 v1max             =  3
-v2min             = -10
-v2max             =  10
+v2min             = -3
+v2max             =  3
 
 @ domain ------------------------------*
 
 @ quantum -----------------------------*
 
-hbar              = 0.1
+hbar              = 0.001
 
 @ quantum -----------------------------*
 
@@ -50,7 +50,7 @@ copytobatman =  0,20, echo 'haha'
 
 @ IO_control ---------------------------*
 
-large_file_intp   =  120
+large_file_intp   =  300
 small_file_intp   =  5
 x_dot_probe       =  200
 
@@ -58,7 +58,18 @@ x_dot_probe       =  200
 
 
 # -------------- initial shapes ----------------- #
+@ test_shape  ----------------------*
+x10               =  9
+x20               =  6
+x1w               =  1
+x2w               =  1
+vth               =  .3
+vd1               =  1
+vd2               =  1
+ptb               =  0.06
 
+
+@ test_shape  ----------------------*
 @ two_Maxwell ----------------------*
 
 wave_number_norm  =  10
@@ -78,9 +89,9 @@ ptb               =  0.00010001
 
 wave_number_norm  =  5
 wave_length       =  80
-vth               =  1
+vth               =  .3
 vd1               =  0
-vd2               =  0
+vd2               =  1
 ptb               =  0.06
 
 @ single_Maxwell ----------------------*
